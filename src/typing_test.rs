@@ -92,6 +92,12 @@ impl TypingTest {
     }
 
     /// Processes the typed character. Returns whether the test is done.
+    /// - Moves the cursor to the next character.
+    /// - If letter is wrong, the current word is marked as errored.
+    /// - If at the end of current word, expects a space character. Otherwise, overshoot the
+    ///   current word and mark it as wrong.
+    /// - Space completes the current word and goes to next word. If it's at the last word,
+    ///   it will terminate the test. If the current word is incomplete, it will be marked as errored.
     pub fn on_type(&self, c: char) -> bool {
         false
     }
