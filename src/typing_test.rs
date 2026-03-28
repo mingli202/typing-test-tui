@@ -25,6 +25,12 @@ pub struct Word {
 }
 
 impl Word {
+    pub fn len(&self) -> usize {
+        self.letters.len()
+    }
+}
+
+impl Word {
     pub fn new(text: &str, id: usize) -> Word {
         Word {
             letters: text
@@ -98,7 +104,97 @@ impl TypingTest {
     ///   current word and mark it as wrong.
     /// - Space completes the current word and goes to next word. If it's at the last word,
     ///   it will terminate the test. If the current word is incomplete, it will be marked as errored.
-    pub fn on_type(&self, c: char) -> bool {
+    pub fn on_type(&mut self, c: char) -> bool {
+        if c == ' ' {
+            return self.handle_space();
+        }
+
         false
+    }
+
+    /// Handle the space character
+    /// Moves the cursor to the next word and reset the letter index to 0
+    /// If it's the last word, mark it as error and end the test
+    fn handle_space(&mut self) -> bool {
+        let len = self.words.len();
+
+        let curr_word = &mut self.words[self.word_index];
+        curr_word.last_typed_letter_index = self.letter_index;
+
+        let is_last_letter = self.letter_index >= curr_word.len() - 1;
+        if !is_last_letter {
+            curr_word.is_error = true;
+        }
+
+        let is_last_word = self.word_index >= len - 1;
+
+        if is_last_word {
+            return true;
+        }
+
+        self.word_index += 1;
+        self.letter_index = 0;
+
+        false
+    }
+}
+
+#[cfg(test)]
+mod typing_test_test {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn typing_test_constructor() {
+        let test = TypingTest::new("Hello world!");
+
+        assert_eq!(test.words.len(), 2)
+    }
+
+    #[test]
+    fn handle_space_middle_of_word() {
+        let mut test = TypingTest::new("Hello world!");
+        test.letter_index = 2;
+
+        let did_end = test.handle_space();
+
+        assert_eq!(test.word_index, 1, "should have gone to next word");
+        assert_eq!(test.letter_index, 0, "letter index should be reset");
+        assert_eq!(
+            test.words[0].is_error, true,
+            "since it's not the end of the word, a <space> is a wrong character"
+        );
+        assert_eq!(
+            test.words[0].last_typed_letter_index, 2,
+            "where you left off"
+        );
+        assert_eq!(did_end, false, "should not have ended");
+    }
+
+    #[test]
+    fn handle_space_end_of_word() {
+        let mut test = TypingTest::new("Hello world!");
+        test.word_index = 0;
+        test.letter_index = 4;
+
+        test.handle_space();
+
+        let word = &test.words[0];
+
+        assert_eq!(word.is_error, true, "end of word should expect a space");
+    }
+
+    #[test]
+    fn handle_space_last_word() {
+        let mut test = TypingTest::new("Hello world!");
+        test.word_index = 1;
+        test.letter_index = 4;
+
+        let did_end = test.handle_space();
+
+        let word = &test.words[1];
+
+        assert_eq!(did_end, true, "should have ended the test");
+        assert_eq!(word.is_error, true, "should have errored the last word")
     }
 }
