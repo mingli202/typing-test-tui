@@ -156,6 +156,9 @@ pub struct TypingTest {
 
     /// Whether the test has started
     started: bool,
+
+    /// Whether the test is done
+    done: bool,
 }
 
 impl TypingTest {
@@ -172,6 +175,7 @@ impl TypingTest {
             letter_index: 0,
             time_started: Instant::now(),
             started: false,
+            done: false,
             words,
         }
     }
@@ -184,8 +188,13 @@ impl TypingTest {
     /// - Space completes the current word and goes to next word. If it's at the last word,
     ///   it will terminate the test. If the current word is incomplete, it will be marked as errored.
     pub fn on_type(&mut self, c: char) -> bool {
+        if self.done {
+            return true;
+        }
+
         if c == ' ' {
-            return self.on_space();
+            self.done = self.on_space();
+            return self.done;
         }
 
         let curr_word = &mut self.words[self.word_index];
@@ -208,13 +217,13 @@ impl TypingTest {
                 self.word_index >= self.words.len() - 1 && self.letter_index >= word_len - 1;
 
             if is_at_last_letter_of_last_word && !is_last_word_error {
-                return true;
+                self.done = true;
             }
         }
 
         self.letter_index += 1;
 
-        false
+        self.done
     }
 
     /// Gets the numbers of wrong words
@@ -631,6 +640,7 @@ mod typing_test_test {
         let did_end_1 = test.on_type('1');
         test.on_backspace();
         let did_end_2 = test.on_type('!');
+        let did_end_3 = test.on_type('1');
 
         assert_eq!(
             test.words[1]
@@ -659,7 +669,7 @@ mod typing_test_test {
             "last word should have no error"
         );
         assert_eq!(test.word_index, 1);
-        assert_eq!(test.letter_index, 5);
+        assert_eq!(test.letter_index, 6);
         assert_eq!(
             did_end_1, false,
             "should not have ended when last word is error"
@@ -669,5 +679,6 @@ mod typing_test_test {
             "should have ended after correcting himself"
         );
         assert_eq!(test.n_wrongs(), 0, "should have corrected everything");
+        assert_eq!(did_end_3, true, "should be true even after ended");
     }
 }
