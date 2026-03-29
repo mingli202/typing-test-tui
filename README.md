@@ -1,6 +1,6 @@
 # Typing test cli
 
-Monkeytype inspired typing test in the terminal made in rust.
+Monkeytype inspired typing test in the terminal made in rust. Words and quotes are from my rust gui typing test repo
 
 ### Typing test logic
 - Must type the same character as the current letter
