@@ -1,21 +1,44 @@
 use std::time::Instant;
 
+#[derive(Debug)]
+pub enum TypedState {
+    Typed(char),
+    NotTyped,
+    Extra,
+}
+
 /// Represents a single letter of a word
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Letter {
     letter: char,
+    typed_letter: TypedState,
     char_id: usize,
     word_id: usize,
 }
 
+impl Letter {
+    pub fn new(letter: char, char_id: usize, word_id: usize) -> Self {
+        Letter {
+            letter,
+            typed_letter: TypedState::NotTyped,
+            char_id,
+            word_id,
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        match self.typed_letter {
+            TypedState::Typed(c) => self.letter != c,
+            _ => true,
+        }
+    }
+}
+
 /// Represent a single word of the text to type
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Word {
     id: usize,
     letters: Vec<Letter>,
-
-    /// Whether the word has been typed wrong
-    is_error: bool,
 
     /// The underlying word. Kept so we can easily render the word
     word: String,
@@ -36,17 +59,22 @@ impl Word {
             letters: text
                 .chars()
                 .enumerate()
-                .map(|(i, letter)| Letter {
-                    letter,
-                    char_id: i,
-                    word_id: id,
-                })
+                .map(|(i, letter)| Letter::new(letter, i, id))
                 .collect(),
-            is_error: false,
             id,
             word: text.to_string(),
             last_typed_letter_index: 0,
         }
+    }
+
+    /// Whether any letter is errored
+    pub fn is_error(&self) -> bool {
+        self.letters.iter().any(|letter| letter.is_error())
+    }
+
+    /// Push a letter to the word
+    pub fn push(&mut self, letter: Letter) {
+        self.letters.push(letter)
     }
 }
 
@@ -59,10 +87,10 @@ pub struct TypingTest {
     ///   01234    01234    0123    01    012    0123    01234    0123
     words: Vec<Word>,
 
-    /// The current word the user is at
+    /// The current word the user is typing
     word_index: usize,
 
-    /// The current letter in the current word
+    /// The current letter in the current word to be typed
     letter_index: usize,
 
     /// When the test has started
@@ -109,6 +137,22 @@ impl TypingTest {
             return self.handle_space();
         }
 
+        let curr_word = &mut self.words[self.word_index];
+        let len = curr_word.len();
+
+        if self.letter_index >= len {
+            curr_word.push(Letter {
+                letter: c,
+                typed_letter: TypedState::Extra,
+                char_id: len,
+                word_id: self.word_index,
+            });
+        } else {
+            let curr_letter = &curr_word.letters[self.letter_index];
+        }
+
+        self.letter_index += 1;
+
         false
     }
 
@@ -120,11 +164,6 @@ impl TypingTest {
 
         let curr_word = &mut self.words[self.word_index];
         curr_word.last_typed_letter_index = self.letter_index;
-
-        let is_last_letter = self.letter_index >= curr_word.len() - 1;
-        if !is_last_letter {
-            curr_word.is_error = true;
-        }
 
         let is_last_word = self.word_index >= len - 1;
 
@@ -161,7 +200,8 @@ mod typing_test_test {
         assert_eq!(test.word_index, 1, "should have gone to next word");
         assert_eq!(test.letter_index, 0, "letter index should be reset");
         assert_eq!(
-            test.words[0].is_error, true,
+            test.words[0].is_error(),
+            true,
             "since it's not the end of the word, a <space> is a wrong character"
         );
         assert_eq!(
@@ -175,13 +215,17 @@ mod typing_test_test {
     fn handle_space_end_of_word() {
         let mut test = TypingTest::new("Hello world!");
         test.word_index = 0;
-        test.letter_index = 4;
+        test.letter_index = 5;
+        test.words[0]
+            .letters
+            .iter_mut()
+            .for_each(|letter| letter.typed_letter = TypedState::Typed(letter.letter));
 
         test.handle_space();
 
         let word = &test.words[0];
 
-        assert_eq!(word.is_error, true, "end of word should expect a space");
+        assert_eq!(word.is_error(), false, "end of word should expect a space");
     }
 
     #[test]
@@ -195,6 +239,6 @@ mod typing_test_test {
         let word = &test.words[1];
 
         assert_eq!(did_end, true, "should have ended the test");
-        assert_eq!(word.is_error, true, "should have errored the last word")
+        assert_eq!(word.is_error(), true, "should have errored the last word")
     }
 }
