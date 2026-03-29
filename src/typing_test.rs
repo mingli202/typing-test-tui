@@ -28,6 +28,14 @@ impl Letter {
             word_id,
         }
     }
+
+    /// Whether this letter is right!
+    pub fn is_error(&self) -> bool {
+        match self.typed_letter {
+            TypedState::Typed(c) => c != self.letter,
+            _ => true,
+        }
+    }
 }
 
 /// Represent a single word of the text to type
@@ -67,11 +75,7 @@ impl Word {
     /// If a word is errored, there will be a red underline
     /// This error is only computed for typed words (e.g. every word before the current word)
     pub fn is_error(&self) -> bool {
-        self.letters
-            .iter()
-            .map(|letter| letter.letter)
-            .collect::<String>()
-            == self.word
+        self.letters.iter().any(|letter| letter.is_error())
     }
 
     /// Push a letter to the word
@@ -243,5 +247,14 @@ mod typing_test_test {
 
         assert_eq!(did_end, true, "should have ended the test");
         assert_eq!(word.is_error(), true, "should have errored the last word")
+    }
+
+    #[test]
+    fn on_type_single_char() {
+        let mut test = TypingTest::new("Hello world!");
+        let did_end = test.on_type('H');
+
+        assert_eq!(did_end, false, "should not have ended");
+        assert_eq!(test.words[0].is_error(), true, "word is not complete")
     }
 }
