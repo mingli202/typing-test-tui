@@ -200,7 +200,7 @@ impl TypingTest {
     }
 
     /// Total number of letters typed excluding extras
-    pub fn n_letters_typed(&self) -> usize {
+    pub fn total_letters_typed(&self) -> usize {
         self.words.iter().map(|word| word.n_letters_typed()).sum()
     }
 
@@ -538,13 +538,13 @@ mod typing_test_test {
     }
 
     #[test]
-    fn n_letters_typed() {
+    fn total_letters_typed() {
         let mut test = TypingTest::new("Hello world!");
 
         "Hel waold!asdf".chars().for_each(|c| {
             test.on_type(c);
         });
 
-        assert_eq!(test.n_letters_typed(), 9);
+        assert_eq!(test.total_letters_typed(), 9);
     }
 }
