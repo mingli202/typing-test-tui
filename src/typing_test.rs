@@ -11,6 +11,9 @@ pub enum TypedState {
 #[derive(Debug)]
 pub struct Letter {
     letter: char,
+
+    /// states for the letter.
+    /// used to style this letter white (typed), red (error), gray (not typed)
     typed_letter: TypedState,
     char_id: usize,
     word_id: usize,
@@ -23,13 +26,6 @@ impl Letter {
             typed_letter: TypedState::NotTyped,
             char_id,
             word_id,
-        }
-    }
-
-    pub fn is_error(&self) -> bool {
-        match self.typed_letter {
-            TypedState::Typed(c) => self.letter != c,
-            _ => true,
         }
     }
 }
@@ -68,8 +64,14 @@ impl Word {
     }
 
     /// Whether any letter is errored
+    /// If a word is errored, there will be a red underline
+    /// This error is only computed for typed words (e.g. every word before the current word)
     pub fn is_error(&self) -> bool {
-        self.letters.iter().any(|letter| letter.is_error())
+        self.letters
+            .iter()
+            .map(|letter| letter.letter)
+            .collect::<String>()
+            == self.word
     }
 
     /// Push a letter to the word
@@ -148,7 +150,8 @@ impl TypingTest {
                 word_id: self.word_index,
             });
         } else {
-            let curr_letter = &curr_word.letters[self.letter_index];
+            let curr_letter = &mut curr_word.letters[self.letter_index];
+            curr_letter.typed_letter = TypedState::Typed(c);
         }
 
         self.letter_index += 1;
