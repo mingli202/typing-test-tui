@@ -598,7 +598,7 @@ mod typing_test_test {
 
     #[test]
     fn simulate_usage() {
-        let mut test = TypingTest::new("Hello world!");
+        let mut test = TypingTest::new("Hello World!");
         test.on_type('h');
         test.on_type('e');
         test.on_type('l');
@@ -610,7 +610,7 @@ mod typing_test_test {
         test.on_backspace();
         test.on_backspace();
         test.on_type('H');
-        test.on_type('o');
+        test.on_type('e');
         test.on_type('l');
         test.on_type('l');
         test.on_type('o');
@@ -632,6 +632,34 @@ mod typing_test_test {
         test.on_backspace();
         let did_end_2 = test.on_type('!');
 
+        assert_eq!(
+            test.words[1]
+                .letters
+                .iter()
+                .map(|letter| letter.typed_letter.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::Typed('W'),
+                TypedState::Typed('o'),
+                TypedState::Typed('r'),
+                TypedState::Typed('l'),
+                TypedState::Typed('d'),
+                TypedState::Typed('!'),
+            ]
+        );
+        assert_eq!(test.words[1].to_string_typed(), "World!", "last typed word");
+        assert_eq!(
+            test.words[0].is_error(),
+            false,
+            "first word should have no error"
+        );
+        assert_eq!(
+            test.words[1].is_error(),
+            false,
+            "last word should have no error"
+        );
+        assert_eq!(test.word_index, 1);
+        assert_eq!(test.letter_index, 5);
         assert_eq!(
             did_end_1, false,
             "should not have ended when last word is error"
