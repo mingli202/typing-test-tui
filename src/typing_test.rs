@@ -11,16 +11,20 @@ pub enum TypedState {
 /// Represents a single letter of a word
 #[derive(Debug)]
 pub struct Letter {
+    /// Its letter
     letter: char,
 
     /// states for the letter.
     /// used to style this letter white (typed), red (error), gray (not typed)
     typed_letter: TypedState,
+
+    /// Used to position the cursor correctly in the UI
     char_id: usize,
     word_id: usize,
 }
 
 impl Letter {
+    /// Creates a new Letter with the given letter, char_id, and word_id
     pub fn new(letter: char, char_id: usize, word_id: usize) -> Self {
         Letter {
             letter,
@@ -42,7 +46,10 @@ impl Letter {
 /// Represent a single word of the text to type
 #[derive(Debug)]
 pub struct Word {
+    /// Index of the word in the typing test
     id: usize,
+
+    /// Its letters
     letters: Vec<Letter>,
 
     /// The underlying word. Kept so we can easily render the word
@@ -53,6 +60,7 @@ pub struct Word {
 }
 
 impl Word {
+    /// Creates a new Word from the given string and id
     pub fn new(text: &str, id: usize) -> Word {
         Word {
             letters: text
@@ -138,6 +146,7 @@ pub struct TypingTest {
 }
 
 impl TypingTest {
+    /// Creates a new TypingTest with the given &str
     pub fn new(text: &str) -> Self {
         let words: Vec<Word> = text
             .split(" ")
