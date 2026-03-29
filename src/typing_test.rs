@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use itertools::Itertools;
 
@@ -152,13 +152,10 @@ pub struct TypingTest {
     letter_index: usize,
 
     /// When the test has started
-    time_started: Instant,
+    time_started: Option<Instant>,
 
-    /// Whether the test has started
-    started: bool,
-
-    /// Whether the test is done
-    done: bool,
+    /// When the test as ended
+    time_ended: Option<Instant>,
 }
 
 impl TypingTest {
@@ -173,9 +170,8 @@ impl TypingTest {
         TypingTest {
             word_index: 0,
             letter_index: 0,
-            time_started: Instant::now(),
-            started: false,
-            done: false,
+            time_started: None,
+            time_ended: None,
             words,
         }
     }
@@ -188,42 +184,42 @@ impl TypingTest {
     /// - Space completes the current word and goes to next word. If it's at the last word,
     ///   it will terminate the test. If the current word is incomplete, it will be marked as errored.
     pub fn on_type(&mut self, c: char) -> bool {
-        if self.done {
+        if self.is_done() {
             return true;
         }
 
-        if c == ' ' {
-            self.done = self.on_space();
-            return self.done;
-        }
-
-        let curr_word = &mut self.words[self.word_index];
-        let word_len = curr_word.letters_len();
-
-        let is_overshoot = self.letter_index >= word_len;
-        if is_overshoot {
-            curr_word.push(Letter {
-                letter: c,
-                typed_letter: TypedState::Extra,
-                char_id: word_len,
-                word_id: self.word_index,
-            });
+        let is_done = if c == ' ' {
+            self.on_space()
         } else {
-            let curr_letter = &mut curr_word.letters[self.letter_index];
-            curr_letter.typed_letter = TypedState::Typed(c);
+            let curr_word = &mut self.words[self.word_index];
+            let word_len = curr_word.letters_len();
+
+            let is_overshoot = self.letter_index >= word_len;
+            if is_overshoot {
+                curr_word.push(Letter {
+                    letter: c,
+                    typed_letter: TypedState::Extra,
+                    char_id: word_len,
+                    word_id: self.word_index,
+                });
+            } else {
+                let curr_letter = &mut curr_word.letters[self.letter_index];
+                curr_letter.typed_letter = TypedState::Typed(c);
+            }
 
             let is_last_word_error = curr_word.is_error();
             let is_at_last_letter_of_last_word =
                 self.word_index >= self.words.len() - 1 && self.letter_index >= word_len - 1;
 
-            if is_at_last_letter_of_last_word && !is_last_word_error {
-                self.done = true;
-            }
+            self.letter_index += 1;
+            is_at_last_letter_of_last_word && !is_last_word_error
+        };
+
+        if is_done {
+            self.time_ended = Some(Instant::now());
         }
 
-        self.letter_index += 1;
-
-        self.done
+        is_done
     }
 
     /// Gets the numbers of wrong words
@@ -238,44 +234,41 @@ impl TypingTest {
 
     /// Starts the typing test timer
     pub fn start(&mut self) {
-        self.started = true;
-        self.time_started = Instant::now();
+        self.time_started = Some(Instant::now());
     }
 
-    /// Gets the WPM now since the starting time.
+    /// Gets the net WPM now since the starting time.
     /// If it hasn't started, it's 0
-    pub fn wpm(&self) -> f32 {
-        if !self.started {
-            return 0.0;
+    pub fn net_wpm(&self) -> f32 {
+        match self.elapsed_since_start_sec() {
+            Some(elapsed) => {
+                let final_typed_words =
+                    self.total_letters_typed() as f32 / 5.0 - self.n_wrongs() as f32;
+                final_typed_words / elapsed.as_secs_f32()
+            }
+            None => 0.0,
         }
-
-        let now = Instant::now();
-        let elapsed = now - self.time_started;
-
-        let final_typed_words = self.total_letters_typed() as f32 / 5.0 - self.n_wrongs() as f32;
-
-        final_typed_words / elapsed.as_secs_f32()
     }
 
-    /// Handle the space character
-    /// Moves the cursor to the next word and reset the letter index to 0
-    /// If it's the last word, mark it as error and end the test
-    fn on_space(&mut self) -> bool {
-        let len = self.words.len();
-
-        let curr_word = &mut self.words[self.word_index];
-        curr_word.last_typed_letter_index = self.letter_index;
-
-        let is_last_word = self.word_index >= len - 1;
-
-        if is_last_word {
-            return true;
+    /// Gets gross_wpm since the starting time
+    pub fn gross_wpm(&self) -> f32 {
+        match self.elapsed_since_start_sec() {
+            Some(elapsed) => {
+                let final_typed_words = self.total_letters_typed() as f32 / 5.0;
+                final_typed_words / elapsed.as_secs_f32()
+            }
+            None => 0.0,
         }
+    }
 
-        self.word_index += 1;
-        self.letter_index = 0;
+    /// Whether the test has started
+    pub fn has_started(&self) -> bool {
+        self.time_started.is_some()
+    }
 
-        false
+    /// Whether the test is done
+    pub fn is_done(&self) -> bool {
+        self.time_ended.is_some()
     }
 
     /// Handles when the user backspace.
@@ -330,6 +323,36 @@ impl TypingTest {
         let letter_index = self.letter_index;
         self.get_curr_word_mut()
             .and_then(|word| word.letters.get_mut(letter_index))
+    }
+
+    /// Handle the space character
+    /// Moves the cursor to the next word and reset the letter index to 0
+    /// If it's the last word, mark it as error and end the test
+    fn on_space(&mut self) -> bool {
+        let len = self.words.len();
+
+        let curr_word = &mut self.words[self.word_index];
+        curr_word.last_typed_letter_index = self.letter_index;
+
+        let is_last_word = self.word_index >= len - 1;
+
+        if is_last_word {
+            return true;
+        }
+
+        self.word_index += 1;
+        self.letter_index = 0;
+
+        false
+    }
+
+    /// Gets the time since start
+    /// If the test has ended, use the end time as now
+    fn elapsed_since_start_sec(&self) -> Option<Duration> {
+        self.time_started.map(|start_time| {
+            self.time_ended
+                .map_or_else(|| start_time.elapsed(), |now| now - start_time)
+        })
     }
 }
 
@@ -680,5 +703,33 @@ mod typing_test_test {
         );
         assert_eq!(test.n_wrongs(), 0, "should have corrected everything");
         assert_eq!(did_end_3, true, "should be true even after ended");
+    }
+
+    #[test]
+    fn elapsed_using_start() {
+        let mut test = TypingTest::new("Hello World!");
+
+        assert_eq!(test.elapsed_since_start_sec(), None);
+
+        test.start();
+
+        assert_eq!(
+            test.elapsed_since_start_sec().unwrap() < Duration::from_secs(1),
+            true
+        );
+    }
+
+    #[test]
+    fn elapsed_setting_start() {
+        let mut test = TypingTest::new("Hello World!");
+
+        assert_eq!(test.elapsed_since_start_sec(), None);
+
+        test.time_started = Some(Instant::now());
+        test.time_ended = test
+            .time_started
+            .map(|time_started| time_started + Duration::from_secs(10));
+
+        assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
     }
 }
