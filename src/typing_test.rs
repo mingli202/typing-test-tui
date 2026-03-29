@@ -92,6 +92,14 @@ impl Word {
     pub fn actual_len(&self) -> usize {
         self.word.len()
     }
+
+    /// Gets the number of letter typed excluding extras
+    pub fn n_letters_typed(&self) -> usize {
+        self.letters
+            .iter()
+            .filter(|letter| matches!(letter.typed_letter, TypedState::Typed(_)))
+            .count()
+    }
 }
 
 impl Display for Word {
@@ -127,9 +135,6 @@ pub struct TypingTest {
 
     /// Whether the test has started
     started: bool,
-
-    /// How many characters typed in total (includes spaces)
-    n_letter_typed: i32,
 }
 
 impl TypingTest {
@@ -146,7 +151,6 @@ impl TypingTest {
             time_started: Instant::now(),
             started: false,
             words,
-            n_letter_typed: 0,
         }
     }
 
@@ -193,6 +197,17 @@ impl TypingTest {
     /// Gets the numbers of wrong words
     pub fn n_wrongs(&self) -> usize {
         self.words.iter().filter(|word| word.is_error()).count()
+    }
+
+    /// Total number of letters typed excluding extras
+    pub fn n_letters_typed(&self) -> usize {
+        self.words.iter().map(|word| word.n_letters_typed()).sum()
+    }
+
+    /// Starts the typing test timer
+    pub fn start(&mut self) {
+        self.started = true;
+        self.time_started = Instant::now();
     }
 
     /// Handle the space character
@@ -520,5 +535,16 @@ mod typing_test_test {
         });
 
         assert_eq!(test.n_wrongs(), 1);
+    }
+
+    #[test]
+    fn n_letters_typed() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel waold!asdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_letters_typed(), 9);
     }
 }
