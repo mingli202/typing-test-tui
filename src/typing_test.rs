@@ -144,18 +144,25 @@ impl TypingTest {
         }
 
         let curr_word = &mut self.words[self.word_index];
-        let len = curr_word.len();
+        let word_len = curr_word.len();
 
-        if self.letter_index >= len {
+        if self.letter_index >= word_len {
             curr_word.push(Letter {
                 letter: c,
                 typed_letter: TypedState::Extra,
-                char_id: len,
+                char_id: word_len,
                 word_id: self.word_index,
             });
         } else {
             let curr_letter = &mut curr_word.letters[self.letter_index];
             curr_letter.typed_letter = TypedState::Typed(c);
+
+            let is_at_last_letter_of_last_word =
+                self.word_index >= self.words.len() - 1 && self.letter_index >= word_len - 1;
+
+            if is_at_last_letter_of_last_word {
+                return true;
+            }
         }
 
         self.letter_index += 1;
@@ -256,5 +263,52 @@ mod typing_test_test {
 
         assert_eq!(did_end, false, "should not have ended");
         assert_eq!(test.words[0].is_error(), true, "word is not complete")
+    }
+
+    #[test]
+    fn on_type_one_word() {
+        let mut test = TypingTest::new("Hello world!");
+
+        let did_end = "Hello".chars().any(|c| test.on_type(c));
+
+        assert_eq!(did_end, false, "should not have ended");
+        assert_eq!(test.words[0].is_error(), false, "word is complete")
+    }
+
+    #[test]
+    fn on_type_with_space_in_middle() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel".chars().any(|c| test.on_type(c));
+        let did_end = test.on_type(' ');
+
+        assert_eq!(did_end, false, "should not have ended");
+        assert_eq!(test.words[0].is_error(), true, "word has skipped letter")
+    }
+
+    #[test]
+    fn on_type_with_word_overshoot() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hellow".chars().any(|c| test.on_type(c));
+        let did_end = test.on_type('o');
+
+        assert_eq!(did_end, false, "should not have ended");
+        assert_eq!(test.words[0].is_error(), true, "word has extra letter")
+    }
+
+    #[test]
+    fn on_type_all() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hello world".chars().any(|c| test.on_type(c));
+        let did_end = test.on_type('!');
+
+        assert_eq!(
+            did_end, true,
+            "should have ended on the last char of the last word"
+        );
+        assert_eq!(test.words[0].is_error(), false, "word has extra letter");
+        assert_eq!(test.words[1].is_error(), false, "word has extra letter");
     }
 }
