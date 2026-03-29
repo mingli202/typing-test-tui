@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::time::Instant;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum TypedState {
     Typed(char),
     NotTyped,
@@ -78,8 +78,19 @@ impl Word {
         self.letters.push(letter)
     }
 
-    pub fn len(&self) -> usize {
+    /// Pops the last letter
+    pub fn pop(&mut self) -> Option<Letter> {
+        self.letters.pop()
+    }
+
+    /// Gets the length of all its typed and untyped letters
+    pub fn letters_len(&self) -> usize {
         self.letters.len()
+    }
+
+    /// Gets the actual length of the word to type
+    pub fn actual_len(&self) -> usize {
+        self.word.len()
     }
 }
 
@@ -156,7 +167,7 @@ impl TypingTest {
         }
 
         let curr_word = &mut self.words[self.word_index];
-        let word_len = curr_word.len();
+        let word_len = curr_word.letters_len();
 
         if self.letter_index >= word_len {
             curr_word.push(Letter {
@@ -202,6 +213,60 @@ impl TypingTest {
         self.letter_index = 0;
 
         false
+    }
+
+    /// Handles when the user backspace.
+    /// Decrement letter_index by 1.
+    /// If it's the start a word, go back to the previous word
+    /// and pick up where the last letter was typed.
+    /// If it's the start, do nothing.
+    /// Resets typed letter state to NotTyped.
+    pub fn handle_backspace(&mut self) {
+        let is_first_letter = self.letter_index == 0;
+        if is_first_letter {
+            let is_first_word = self.word_index == 0;
+            if is_first_word {
+                return;
+            }
+
+            self.word_index -= 1;
+            self.letter_index = self.words[self.word_index].last_typed_letter_index;
+        } else {
+            self.letter_index -= 1;
+        }
+
+        if let Some(letter) = self.get_curr_letter_mut() {
+            if matches!(letter.typed_letter, TypedState::Extra) {
+                if let Some(word) = self.get_curr_word_mut() {
+                    word.letters.pop();
+                }
+            } else {
+                letter.typed_letter = TypedState::NotTyped;
+            }
+        }
+    }
+
+    /// Get current word.
+    pub fn get_curr_word(&self) -> Option<&Word> {
+        self.words.get(self.word_index)
+    }
+
+    /// Get current word.
+    pub fn get_curr_word_mut(&mut self) -> Option<&mut Word> {
+        self.words.get_mut(self.word_index)
+    }
+
+    /// Get current letter
+    pub fn get_curr_letter(&self) -> Option<&Letter> {
+        self.get_curr_word()
+            .and_then(|word| word.letters.get(self.letter_index))
+    }
+
+    /// Get current letter
+    pub fn get_curr_letter_mut(&mut self) -> Option<&mut Letter> {
+        let letter_index = self.letter_index;
+        self.get_curr_word_mut()
+            .and_then(|word| word.letters.get_mut(letter_index))
     }
 }
 
@@ -360,5 +425,88 @@ mod typing_test_test {
         assert_eq!(did_end, true, "should not end on last word if has error");
         assert_eq!(test.words[0].is_error(), false, "word is valid");
         assert_eq!(test.words[1].is_error(), true, "contains error");
+    }
+
+    #[test]
+    fn handle_backspace_at_start() {
+        let mut test = TypingTest::new("Hello world!");
+
+        test.handle_backspace();
+
+        assert_eq!(test.get_curr_word().unwrap().to_string(), "Hello");
+    }
+
+    #[test]
+    fn handle_backspace_at_middle_of_word() {
+        let mut test = TypingTest::new("abcde fghi");
+
+        "wers".chars().any(|c| test.on_type(c));
+        test.handle_backspace();
+
+        assert_eq!(test.get_curr_letter().unwrap().letter, 'd');
+        assert_eq!(
+            test.get_curr_word()
+                .unwrap()
+                .letters
+                .iter()
+                .map(|letter| letter.typed_letter.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::Typed('w'),
+                TypedState::Typed('e'),
+                TypedState::Typed('r'),
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+            ]
+        )
+    }
+
+    #[test]
+    fn handle_backspace_after_overshoot() {
+        let mut test = TypingTest::new("abcde fghi");
+
+        "abcdefgi".chars().any(|c| test.on_type(c));
+        test.handle_backspace();
+
+        assert_eq!(test.letter_index, 7);
+        assert_eq!(
+            test.get_curr_word()
+                .unwrap()
+                .letters
+                .iter()
+                .map(|letter| letter.typed_letter.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::Typed('a'),
+                TypedState::Typed('b'),
+                TypedState::Typed('c'),
+                TypedState::Typed('d'),
+                TypedState::Typed('e'),
+                TypedState::Extra,
+                TypedState::Extra,
+            ]
+        )
+    }
+
+    #[test]
+    fn handle_backspace_after_space_at_middle_of_word() {
+        let mut test = TypingTest::new("abcde fghi");
+
+        "wer".chars().any(|c| test.on_type(c));
+        test.handle_space();
+        test.handle_backspace();
+
+        assert_eq!(test.get_curr_letter().unwrap().letter, 'd');
+    }
+
+    #[test]
+    fn handle_backspace_after_complete_word() {
+        let mut test = TypingTest::new("abcde fghi");
+
+        "abcde ".chars().any(|c| test.on_type(c));
+        test.handle_backspace();
+
+        assert_eq!(test.word_index, 0);
+        assert_eq!(test.letter_index, 5);
     }
 }
