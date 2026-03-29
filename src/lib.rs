@@ -6,6 +6,8 @@ use ratatui::layout::Rect;
 use ratatui::widgets::Widget;
 use ratatui::{DefaultTerminal, Frame};
 
+mod typing_test;
+
 #[derive(Default)]
 pub struct TypingTestState {}
 
