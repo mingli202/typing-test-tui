@@ -1,6 +1,8 @@
 use std::fmt::Display;
 use std::time::Instant;
 
+use itertools::Itertools;
+
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum TypedState {
     Typed(char),
@@ -107,6 +109,17 @@ impl Word {
             .iter()
             .filter(|letter| matches!(letter.typed_letter, TypedState::Typed(_)))
             .count()
+    }
+
+    /// String representation but with only typed letters
+    pub fn to_string_typed(&self) -> String {
+        self.letters
+            .iter()
+            .filter_map(|letter| match letter.typed_letter {
+                TypedState::Typed(c) => Some(c),
+                _ => None,
+            })
+            .collect::<String>()
     }
 }
 
@@ -308,6 +321,16 @@ impl TypingTest {
         let letter_index = self.letter_index;
         self.get_curr_word_mut()
             .and_then(|word| word.letters.get_mut(letter_index))
+    }
+}
+
+impl Display for TypingTest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.words.iter().map(|word| word.to_string()).join(" ")
+        )
     }
 }
 
@@ -609,8 +632,14 @@ mod typing_test_test {
         test.on_backspace();
         let did_end_2 = test.on_type('!');
 
-        assert_eq!(did_end_1, false);
-        assert_eq!(did_end_2, true);
-        assert_eq!(test.n_wrongs(), 0);
+        assert_eq!(
+            did_end_1, false,
+            "should not have ended when last word is error"
+        );
+        assert_eq!(
+            did_end_2, true,
+            "should have ended after correcting himself"
+        );
+        assert_eq!(test.n_wrongs(), 0, "should have corrected everything");
     }
 }

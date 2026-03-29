@@ -1535,6 +1535,7 @@ name = "typing-test-cli"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
+ "itertools",
  "pretty_assertions",
  "ratatui",
 ]
