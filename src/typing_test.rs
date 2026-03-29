@@ -172,7 +172,7 @@ impl TypingTest {
     ///   it will terminate the test. If the current word is incomplete, it will be marked as errored.
     pub fn on_type(&mut self, c: char) -> bool {
         if c == ' ' {
-            return self.handle_space();
+            return self.on_space();
         }
 
         let curr_word = &mut self.words[self.word_index];
@@ -238,7 +238,7 @@ impl TypingTest {
     /// Handle the space character
     /// Moves the cursor to the next word and reset the letter index to 0
     /// If it's the last word, mark it as error and end the test
-    fn handle_space(&mut self) -> bool {
+    fn on_space(&mut self) -> bool {
         let len = self.words.len();
 
         let curr_word = &mut self.words[self.word_index];
@@ -262,7 +262,7 @@ impl TypingTest {
     /// and pick up where the last letter was typed.
     /// If it's the start, do nothing.
     /// Resets typed letter state to NotTyped.
-    pub fn handle_backspace(&mut self) {
+    pub fn on_backspace(&mut self) {
         let is_first_letter = self.letter_index == 0;
         if is_first_letter {
             let is_first_word = self.word_index == 0;
@@ -324,11 +324,11 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_space_middle_of_word() {
+    fn on_space_middle_of_word() {
         let mut test = TypingTest::new("Hello world!");
         test.letter_index = 2;
 
-        let did_end = test.handle_space();
+        let did_end = test.on_space();
 
         assert_eq!(test.word_index, 1, "should have gone to next word");
         assert_eq!(test.letter_index, 0, "letter index should be reset");
@@ -345,7 +345,7 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_space_end_of_word() {
+    fn on_space_end_of_word() {
         let mut test = TypingTest::new("Hello world!");
         test.word_index = 0;
         test.letter_index = 5;
@@ -354,7 +354,7 @@ mod typing_test_test {
             .iter_mut()
             .for_each(|letter| letter.typed_letter = TypedState::Typed(letter.letter));
 
-        test.handle_space();
+        test.on_space();
 
         let word = &test.words[0];
 
@@ -362,12 +362,12 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_space_last_word() {
+    fn on_space_last_word() {
         let mut test = TypingTest::new("Hello world!");
         test.word_index = 1;
         test.letter_index = 4;
 
-        let did_end = test.handle_space();
+        let did_end = test.on_space();
 
         let word = &test.words[1];
 
@@ -469,20 +469,20 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_backspace_at_start() {
+    fn on_backspace_at_start() {
         let mut test = TypingTest::new("Hello world!");
 
-        test.handle_backspace();
+        test.on_backspace();
 
         assert_eq!(test.get_curr_word().unwrap().to_string(), "Hello");
     }
 
     #[test]
-    fn handle_backspace_at_middle_of_word() {
+    fn on_backspace_at_middle_of_word() {
         let mut test = TypingTest::new("abcde fghi");
 
         "wers".chars().any(|c| test.on_type(c));
-        test.handle_backspace();
+        test.on_backspace();
 
         assert_eq!(test.get_curr_letter().unwrap().letter, 'd');
         assert_eq!(
@@ -503,11 +503,11 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_backspace_after_overshoot() {
+    fn on_backspace_after_overshoot() {
         let mut test = TypingTest::new("abcde fghi");
 
         "abcdefgi".chars().any(|c| test.on_type(c));
-        test.handle_backspace();
+        test.on_backspace();
 
         assert_eq!(test.letter_index, 7);
         assert_eq!(
@@ -530,22 +530,22 @@ mod typing_test_test {
     }
 
     #[test]
-    fn handle_backspace_after_space_at_middle_of_word() {
+    fn on_backspace_after_space_at_middle_of_word() {
         let mut test = TypingTest::new("abcde fghi");
 
         "wer".chars().any(|c| test.on_type(c));
-        test.handle_space();
-        test.handle_backspace();
+        test.on_space();
+        test.on_backspace();
 
         assert_eq!(test.get_curr_letter().unwrap().letter, 'd');
     }
 
     #[test]
-    fn handle_backspace_after_complete_word() {
+    fn on_backspace_after_complete_word() {
         let mut test = TypingTest::new("abcde fghi");
 
         "abcde ".chars().any(|c| test.on_type(c));
-        test.handle_backspace();
+        test.on_backspace();
 
         assert_eq!(test.word_index, 0);
         assert_eq!(test.letter_index, 5);
@@ -571,5 +571,46 @@ mod typing_test_test {
         });
 
         assert_eq!(test.total_letters_typed(), 9);
+    }
+
+    #[test]
+    fn simulate_usage() {
+        let mut test = TypingTest::new("Hello world!");
+        test.on_type('h');
+        test.on_type('e');
+        test.on_type('l');
+        test.on_type('p');
+        test.on_backspace();
+        test.on_backspace();
+        test.on_backspace();
+        test.on_backspace();
+        test.on_backspace();
+        test.on_backspace();
+        test.on_type('H');
+        test.on_type('o');
+        test.on_type('l');
+        test.on_type('l');
+        test.on_type('o');
+        test.on_type(' ');
+        test.on_type('w');
+        test.on_type('o');
+        test.on_backspace();
+        test.on_backspace();
+        test.on_backspace();
+        test.on_type('W');
+        test.on_backspace();
+        test.on_type(' ');
+        test.on_type('W');
+        test.on_type('o');
+        test.on_type('r');
+        test.on_type('l');
+        test.on_type('d');
+        let did_end_1 = test.on_type('1');
+        test.on_backspace();
+        let did_end_2 = test.on_type('!');
+
+        assert_eq!(did_end_1, false);
+        assert_eq!(did_end_2, true);
+        assert_eq!(test.n_wrongs(), 0);
     }
 }
