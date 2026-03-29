@@ -128,9 +128,6 @@ pub struct TypingTest {
     /// Whether the test has started
     started: bool,
 
-    /// How many wrong words
-    wrongs: usize,
-
     /// How many characters typed in total (includes spaces)
     n_letter_typed: i32,
 }
@@ -149,7 +146,6 @@ impl TypingTest {
             time_started: Instant::now(),
             started: false,
             words,
-            wrongs: 0,
             n_letter_typed: 0,
         }
     }
@@ -192,6 +188,11 @@ impl TypingTest {
         self.letter_index += 1;
 
         false
+    }
+
+    /// Gets the numbers of wrong words
+    pub fn n_wrongs(&self) -> usize {
+        self.words.iter().filter(|word| word.is_error()).count()
     }
 
     /// Handle the space character
@@ -508,5 +509,16 @@ mod typing_test_test {
 
         assert_eq!(test.word_index, 0);
         assert_eq!(test.letter_index, 5);
+    }
+
+    #[test]
+    fn n_wrongs() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel world!".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 1);
     }
 }
