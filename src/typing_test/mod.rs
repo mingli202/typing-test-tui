@@ -3,47 +3,9 @@ use std::time::{Duration, Instant};
 
 use itertools::Itertools;
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum TypedState {
-    Typed(char),
-    NotTyped,
-    Extra,
-}
+use self::letter::{Letter, TypedState};
 
-/// Represents a single letter of a word
-#[derive(Debug)]
-pub struct Letter {
-    /// Its letter
-    letter: char,
-
-    /// states for the letter.
-    /// used to style this letter white (typed), red (error), gray (not typed)
-    typed_letter: TypedState,
-
-    /// Used to position the cursor correctly in the UI
-    char_id: usize,
-    word_id: usize,
-}
-
-impl Letter {
-    /// Creates a new Letter with the given letter, char_id, and word_id
-    pub fn new(letter: char, char_id: usize, word_id: usize) -> Self {
-        Letter {
-            letter,
-            typed_letter: TypedState::NotTyped,
-            char_id,
-            word_id,
-        }
-    }
-
-    /// Whether this letter is right!
-    pub fn is_error(&self) -> bool {
-        match self.typed_letter {
-            TypedState::Typed(c) => c != self.letter,
-            _ => true,
-        }
-    }
-}
+mod letter;
 
 /// Represent a single word of the text to type
 #[derive(Debug)]
@@ -107,7 +69,7 @@ impl Word {
     pub fn n_letters_typed(&self) -> usize {
         self.letters
             .iter()
-            .filter(|letter| matches!(letter.typed_letter, TypedState::Typed(_)))
+            .filter(|letter| matches!(letter.typed_letter(), TypedState::Typed(_)))
             .count()
     }
 
@@ -115,7 +77,7 @@ impl Word {
     pub fn to_string_typed(&self) -> String {
         self.letters
             .iter()
-            .filter_map(|letter| match letter.typed_letter {
+            .filter_map(|letter| match letter.typed_letter() {
                 TypedState::Typed(c) => Some(c),
                 _ => None,
             })
@@ -130,7 +92,7 @@ impl Display for Word {
             "{}",
             self.letters
                 .iter()
-                .map(|letter| letter.letter)
+                .map(|letter| letter.to_string())
                 .collect::<String>()
         )
     }
@@ -196,15 +158,12 @@ impl TypingTest {
 
             let is_overshoot = self.letter_index >= word_len;
             if is_overshoot {
-                curr_word.push(Letter {
-                    letter: c,
-                    typed_letter: TypedState::Extra,
-                    char_id: word_len,
-                    word_id: self.word_index,
-                });
+                curr_word.push(
+                    Letter::new(c, word_len, self.word_index).with_typed_letter(TypedState::Extra),
+                );
             } else {
                 let curr_letter = &mut curr_word.letters[self.letter_index];
-                curr_letter.typed_letter = TypedState::Typed(c);
+                curr_letter.set_typed_state(TypedState::Typed(c));
             }
 
             let is_last_word_error = curr_word.is_error();
