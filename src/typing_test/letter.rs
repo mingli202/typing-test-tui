@@ -54,7 +54,8 @@ impl Letter {
         }
     }
 
-    pub fn typed_letter(&self) -> &TypedState {
+    /// gets the typed letter
+    pub fn typed_state(&self) -> &TypedState {
         &self.typed_state
     }
 }
