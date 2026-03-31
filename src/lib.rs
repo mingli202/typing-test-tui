@@ -63,7 +63,7 @@ impl State {
                     match key.code {
                         KeyCode::Char(c) => {
                             if typing_test.on_type(c) {
-                                Transition::Push(State::EndScreenState)
+                                Transition::Switch(State::EndScreenState)
                             } else {
                                 Transition::None
                             }
@@ -132,7 +132,9 @@ impl App {
         match transition {
             Transition::Switch(next_state) => self.state = next_state,
             Transition::Quit => self.exit = true,
-            Transition::Push(state) => self.history.push(state),
+            Transition::Push(state) => {
+                self.history.push(state);
+            }
             Transition::Pop => {
                 self.history.pop();
             }
