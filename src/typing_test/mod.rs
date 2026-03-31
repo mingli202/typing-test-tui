@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::time::{Duration, Instant};
 
 use itertools::Itertools;
+use ratatui::widgets::Widget;
 
 use self::letter::{Letter, TypedState};
 use self::word::Word;
@@ -234,6 +235,14 @@ impl Display for TypingTest {
             "{}",
             self.words.iter().map(|word| word.to_string()).join(" ")
         )
+    }
+}
+
+impl Widget for &TypingTest {
+    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
     }
 }
 

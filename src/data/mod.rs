@@ -2,7 +2,7 @@ use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
+use std::{fs, io};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quote {
@@ -30,7 +30,7 @@ impl Data {
     pub fn new_offline(
         words_path: Option<String>,
         quotes_path: Option<String>,
-    ) -> color_eyre::Result<Self, Box<dyn Error>> {
+    ) -> io::Result<Data> {
         let words = serde_json::from_str::<Vec<String>>(
             &(if let Some(p) = words_path {
                 fs::read_to_string(p)?

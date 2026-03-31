@@ -9,28 +9,8 @@ use ratatui::{DefaultTerminal, Frame};
 use self::data::Data;
 use self::typing_test::TypingTest;
 
-mod data;
+pub mod data;
 mod typing_test;
-
-pub struct TypingTestState {
-    typing_test: TypingTest,
-}
-
-impl TypingTestState {
-    pub fn new(typing_test: TypingTest) -> Self {
-        TypingTestState { typing_test }
-    }
-}
-
-impl Widget for &TypingTestState {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-    }
-}
-
-pub struct EndScreenState {}
 
 pub enum Transition {
     None,
@@ -41,8 +21,11 @@ pub enum Transition {
 }
 
 pub enum State {
-    TypingTestState(TypingTestState),
-    EndScreenState(EndScreenState),
+    TypingTestState {
+        typing_test: TypingTest,
+        is_typing: bool,
+    },
+    EndScreenState,
 }
 
 impl Widget for &State {
@@ -50,17 +33,32 @@ impl Widget for &State {
     where
         Self: Sized,
     {
-        todo!()
+        match self {
+            State::TypingTestState {
+                typing_test,
+                is_typing,
+            } => {
+                typing_test.render(area, buf);
+            }
+            State::EndScreenState => {}
+        }
     }
 }
 
 impl State {
+    pub fn new(initial_text: &str) -> Self {
+        State::TypingTestState {
+            typing_test: TypingTest::new(initial_text),
+            is_typing: false,
+        }
+    }
+
     fn handle_events(&mut self, event: Event) -> Transition {
         Transition::None
     }
 }
 
-struct App {
+pub struct App {
     state: State,
     history: Vec<State>,
     exit: bool,
@@ -71,7 +69,7 @@ impl App {
     pub fn new(data: Data) -> Self {
         let initial_text = data.get_random_quote().quote.clone();
         App {
-            state: State::TypingTestState(TypingTestState::new(TypingTest::new(&initial_text))),
+            state: State::new(&initial_text),
             history: vec![],
             exit: false,
             data,
