@@ -88,6 +88,15 @@ impl Word {
     pub fn get_letter_mut(&mut self, index: usize) -> Option<&mut Letter> {
         self.letters.get_mut(index)
     }
+
+    /// Reset all its letters to their initial states.
+    /// Extras are dropped.
+    pub fn reset(&mut self) {
+        self.letters.truncate(self.actual_len());
+        self.letters
+            .iter_mut()
+            .for_each(|letter| letter.typed_state = TypedState::NotTyped);
+    }
 }
 
 impl Display for Word {

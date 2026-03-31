@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::owo_colors::Style;
 use itertools::Itertools;
+use ratatui::layout::Constraint;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Widget, Wrap};
@@ -51,6 +52,19 @@ impl TypingTest {
             time_ended: None,
             words,
         }
+    }
+
+    pub fn next(&mut self, text: &str) {
+        self.reset();
+        self.words = Self::to_words(text);
+    }
+
+    pub fn reset(&mut self) {
+        self.word_index = 0;
+        self.letter_index = 0;
+        self.time_started = None;
+        self.time_ended = None;
+        self.reset_words();
     }
 
     /// Processes the typed character. Returns whether the test is done.
@@ -200,6 +214,13 @@ impl TypingTest {
             .and_then(|word| word.get_letter_mut(letter_index))
     }
 
+    pub fn accuracy(&self) -> usize {
+        let total_correct_letters = self.total_correct_letters_typed();
+        let total_letters = self.total_letters();
+
+        100 * total_correct_letters / total_letters
+    }
+
     /// Get the index of the letter if all the letter were flattened into a singlular array
     fn cursor_index(&self) -> usize {
         self.words[0..self.word_index]
@@ -238,6 +259,45 @@ impl TypingTest {
             self.time_ended
                 .map_or_else(|| start_time.elapsed(), |now| now - start_time)
         })
+    }
+
+    /// Get total correct letters
+    fn total_correct_letters_typed(&self) -> usize {
+        self.words
+            .iter()
+            .map(|word| {
+                word.letters
+                    .iter()
+                    .filter(|letter| !letter.is_error())
+                    .count()
+            })
+            .sum::<usize>()
+            + self.words.len()
+            - 1
+    }
+
+    /// The total amount of characters of this test.
+    fn total_letters(&self) -> usize {
+        self.words
+            .iter()
+            .map(|word| word.actual_len())
+            .sum::<usize>()
+            + self.words.len()
+            - 1
+    }
+
+    /// Text to words
+    fn to_words(text: &str) -> Vec<Word> {
+        text.split(" ")
+            .enumerate()
+            .map(|(id, word)| Word::new(word, id))
+            .collect()
+    }
+
+    fn reset_words(&mut self) {
+        self.words.iter_mut().for_each(|word| {
+            word.reset();
+        });
     }
 }
 
@@ -285,9 +345,11 @@ impl Widget for &TypingTest {
         let line = Line::from(text_with_cursor);
         let text = Text::from(line);
 
+        let container = area.centered_vertically(Constraint::Ratio(1, 2));
+
         Paragraph::new(text)
             .wrap(Wrap { trim: true })
-            .render(area, buf);
+            .render(container, buf);
     }
 }
 
@@ -654,5 +716,47 @@ mod typing_test_test {
             .map(|time_started| time_started + Duration::from_secs(10));
 
         assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
+    }
+
+    #[test]
+    fn reset_words() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel word!~asdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        test.reset();
+
+        assert_eq!(
+            test.words[0]
+                .letters
+                .iter()
+                .map(|letter| letter.typed_state.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+            ]
+        );
+
+        assert_eq!(
+            test.words[1]
+                .letters
+                .iter()
+                .map(|letter| letter.typed_state.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+            ]
+        );
     }
 }

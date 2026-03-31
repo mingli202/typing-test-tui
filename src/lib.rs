@@ -3,7 +3,8 @@ use std::io;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{self, Event, KeyCode};
 use ratatui::layout::Rect;
-use ratatui::widgets::Widget;
+use ratatui::macros::text;
+use ratatui::widgets::{Paragraph, Widget};
 use ratatui::{DefaultTerminal, Frame};
 
 use self::data::Data;
@@ -25,7 +26,11 @@ pub enum State {
         typing_test: TypingTest,
         is_typing: bool,
     },
-    EndScreenState,
+    EndScreenState {
+        wpm: f32,
+        accuracy: usize,
+        source: String,
+    },
 }
 
 impl Widget for &State {
@@ -40,7 +45,18 @@ impl Widget for &State {
             } => {
                 typing_test.render(area, buf);
             }
-            State::EndScreenState => {}
+            State::EndScreenState {
+                wpm,
+                accuracy,
+                source,
+            } => {
+                Paragraph::new(text![
+                    format!("WPM: {:.1}", wpm),
+                    format!("ACC: {}%", accuracy),
+                ])
+                .centered()
+                .render(area, buf);
+            }
         }
     }
 }
@@ -63,13 +79,23 @@ impl State {
                     match key.code {
                         KeyCode::Char(c) => {
                             if typing_test.on_type(c) {
-                                Transition::Switch(State::EndScreenState)
+                                let wpm = typing_test.net_wpm();
+                                let accuracy = typing_test.accuracy();
+                                Transition::Switch(State::EndScreenState {
+                                    wpm,
+                                    accuracy,
+                                    source: "".to_string(),
+                                })
                             } else {
                                 Transition::None
                             }
                         }
                         KeyCode::Backspace => {
                             typing_test.on_backspace();
+                            Transition::None
+                        }
+                        KeyCode::Tab => {
+                            typing_test.reset();
                             Transition::None
                         }
                         _ => Transition::None,
