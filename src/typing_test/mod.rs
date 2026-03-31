@@ -6,7 +6,7 @@ use itertools::Itertools;
 use ratatui::layout::Constraint;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 
 use self::letter::{Letter, TypedState};
 use self::word::Word;
@@ -354,7 +354,9 @@ impl Widget for &TypingTest {
         let line = Line::from(text_with_cursor);
         let text = Text::from(line);
 
-        let container = area.centered_vertically(Constraint::Percentage(50));
+        let container = area
+            .centered_vertically(Constraint::Length(3))
+            .centered_horizontally(Constraint::Max(80));
 
         Paragraph::new(text)
             .wrap(Wrap { trim: true })
