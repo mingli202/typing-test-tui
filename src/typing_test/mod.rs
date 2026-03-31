@@ -120,8 +120,12 @@ impl TypingTest {
         self.words.iter().map(|word| word.n_letters_typed()).sum()
     }
 
-    /// Starts the typing test timer
+    /// Starts the typing test timer if it hasn't been started
     pub fn start(&mut self) {
+        if (self.has_started()) {
+            return;
+        }
+
         self.time_started = Some(Instant::now());
     }
 
@@ -345,7 +349,7 @@ impl Widget for &TypingTest {
         let line = Line::from(text_with_cursor);
         let text = Text::from(line);
 
-        let container = area.centered_vertically(Constraint::Ratio(1, 2));
+        let container = area.centered_vertically(Constraint::Percentage(50));
 
         Paragraph::new(text)
             .wrap(Wrap { trim: true })
