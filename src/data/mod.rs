@@ -14,8 +14,8 @@ pub struct Quote {
 
 #[derive(Debug, Default)]
 pub struct Data {
-    text: String,
-    source: String,
+    pub text: String,
+    pub source: String,
 }
 
 impl Data {
@@ -29,7 +29,7 @@ impl Data {
         }
     }
 
-    pub fn get_n_random_words(n: usize) -> Vec<String> {
+    pub fn get_n_random_words(n: usize) -> Data {
         let mut rng = rand::rng();
 
         let mut v = Vec::with_capacity(n);
@@ -49,7 +49,10 @@ impl Data {
             last = ind;
         }
 
-        v
+        Data {
+            text: v.join(" "),
+            source: format!("{} words", n),
+        }
     }
 
     fn get_words() -> Vec<String> {
@@ -1061,15 +1064,17 @@ mod tests {
     fn random_words_and_quotes() {
         let random_words = Data::get_n_random_words(10);
 
-        assert_eq!(10, random_words.len());
+        assert_eq!(10, random_words.text.split(" ").count());
 
         let mut last = String::new();
+
+        let random_words = random_words.text.split(" ").collect::<Vec<&str>>();
 
         for word in random_words {
             if last == word {
                 panic!("Repeating word");
             }
-            last = word
+            last = word.to_string()
         }
     }
 }

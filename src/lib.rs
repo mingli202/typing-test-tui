@@ -3,11 +3,11 @@ use std::time::{Duration, Instant};
 
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{self, Event, KeyCode};
-use ratatui::layout::{Constraint, Offset, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Offset, Rect};
 use ratatui::macros::{line, text};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::Line;
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::widgets::{Paragraph, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 
 use self::data::Data;
@@ -35,6 +35,7 @@ pub enum State {
         typing_test: TypingTest,
         stats_last_updated_time: Instant,
         stats: TypingStats,
+        data: Data,
     },
     EndScreenState {
         wpm: f32,
@@ -71,13 +72,23 @@ impl Widget for &State {
                 accuracy,
                 source,
             } => {
-                let text = text![format!("WPM: {:.1}", wpm), format!("ACC: {}%", accuracy),];
-                let area = area.centered(
-                    Constraint::Length(text.width() as u16),
-                    Constraint::Length(text.height() as u16),
-                );
+                let layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(area);
 
-                Paragraph::new(text).centered().render(area, buf);
+                let text = text![
+                    format!("WPM: {:.1}", wpm),
+                    format!("ACC: {}%", accuracy),
+                    format!(""),
+                    format!("{}", source),
+                ];
+                let stats_area = layout[1];
+
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: true })
+                    .centered()
+                    .render(stats_area, buf);
             }
         }
 
@@ -86,17 +97,22 @@ impl Widget for &State {
 }
 
 impl State {
-    pub fn new(initial_text: &str) -> Self {
+    pub fn new_typing_test() -> Self {
+        let data = Data::get_random_quote();
+
         State::TypingTestState {
-            typing_test: TypingTest::new(initial_text),
+            typing_test: TypingTest::new(&data.text),
             stats_last_updated_time: Instant::now(),
             stats: TypingStats::default(),
+            data,
         }
     }
 
     fn handle_events(app: &mut App, event: Event) -> Transition {
         match &mut app.state {
-            State::TypingTestState { typing_test, .. } => {
+            State::TypingTestState {
+                typing_test, data, ..
+            } => {
                 if let Some(key) = event.as_key_press_event() {
                     match key.code {
                         KeyCode::Char(c) => {
@@ -108,7 +124,7 @@ impl State {
                                 return Transition::Switch(State::EndScreenState {
                                     wpm,
                                     accuracy,
-                                    source: "".to_string(),
+                                    source: data.source.clone(),
                                 });
                             }
 
@@ -118,11 +134,7 @@ impl State {
                             typing_test.on_backspace();
                             Transition::None
                         }
-                        KeyCode::Tab => Transition::Switch(State::TypingTestState {
-                            typing_test: TypingTest::new(&app.data.get_random_quote().quote),
-                            stats_last_updated_time: Instant::now(),
-                            stats: TypingStats::default(),
-                        }),
+                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
                         _ => Transition::None,
                     }
                 } else {
@@ -133,11 +145,7 @@ impl State {
                 if let Some(key) = event.as_key_press_event() {
                     return match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => Transition::Quit,
-                        KeyCode::Tab => Transition::Switch(State::TypingTestState {
-                            typing_test: TypingTest::new(&app.data.get_random_quote().quote),
-                            stats_last_updated_time: Instant::now(),
-                            stats: TypingStats::default(),
-                        }),
+                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
                         _ => Transition::None,
                     };
                 }
@@ -153,6 +161,7 @@ impl State {
                 typing_test,
                 stats_last_updated_time,
                 stats,
+                ..
             } => {
                 if typing_test.has_started()
                     && stats_last_updated_time.elapsed() > Duration::from_secs(1)
@@ -180,17 +189,14 @@ pub struct App {
     state: State,
     history: Vec<State>,
     exit: bool,
-    data: Data,
 }
 
 impl App {
-    pub fn new(data: Data) -> Self {
-        let initial_text = data.get_random_quote().quote.clone();
+    pub fn new() -> Self {
         App {
-            state: State::new(&initial_text),
+            state: State::new_typing_test(),
             history: vec![],
             exit: false,
-            data,
         }
     }
 
@@ -237,5 +243,11 @@ impl App {
             }
             Transition::None => (),
         }
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
