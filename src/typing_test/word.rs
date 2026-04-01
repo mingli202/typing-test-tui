@@ -21,7 +21,7 @@ impl Word {
     /// Creates a new Word from the given string and id
     pub fn new(text: &str) -> Word {
         Word {
-            letters: text.chars().map(|letter| Letter::new(letter)).collect(),
+            letters: text.chars().map(Letter::new).collect(),
             word: text.to_string(),
             last_typed_letter_index: 0,
         }

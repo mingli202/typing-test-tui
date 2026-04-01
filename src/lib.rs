@@ -43,7 +43,11 @@ impl Widget for &State {
                 typing_test,
                 is_typing,
             } => {
-                typing_test.render(area, buf);
+                let container = area
+                    .centered_vertically(Constraint::Length(3))
+                    .centered_horizontally(Constraint::Max(80));
+
+                typing_test.render(container, buf);
             }
             State::EndScreenState {
                 wpm,

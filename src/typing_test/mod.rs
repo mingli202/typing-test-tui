@@ -2,7 +2,6 @@ use std::fmt::Display;
 use std::time::{Duration, Instant};
 
 use itertools::Itertools;
-use ratatui::layout::Constraint;
 use ratatui::macros::line;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
@@ -356,11 +355,7 @@ impl Widget for &TypingTest {
     where
         Self: Sized,
     {
-        let container = area
-            .centered_vertically(Constraint::Length(3))
-            .centered_horizontally(Constraint::Max(80));
-
-        let (text, cursor_index) = self.split_into_lines(container.width as usize);
+        let (text, cursor_index) = self.split_into_lines(area.width as usize);
 
         let offset = if cursor_index == 0 {
             0
@@ -368,9 +363,7 @@ impl Widget for &TypingTest {
             cursor_index as u16 - 1
         };
 
-        Paragraph::new(text)
-            .scroll((offset, 0))
-            .render(container, buf);
+        Paragraph::new(text).scroll((offset, 0)).render(area, buf);
     }
 }
 
