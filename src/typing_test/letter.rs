@@ -1,5 +1,8 @@
 use std::fmt::Display;
 
+use ratatui::style::{Color, Stylize};
+use ratatui::text::Span;
+
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum TypedState {
     Typed(char),
@@ -16,20 +19,14 @@ pub struct Letter {
     /// states for the letter.
     /// used to style this letter white (typed), red (error), gray (not typed)
     pub(super) typed_state: TypedState,
-
-    /// Used to position the cursor correctly in the UI
-    char_id: usize,
-    word_id: usize,
 }
 
 impl Letter {
     /// Creates a new Letter with the given letter, char_id, and word_id
-    pub fn new(letter: char, char_id: usize, word_id: usize) -> Self {
+    pub fn new(letter: char) -> Self {
         Letter {
             letter,
             typed_state: TypedState::NotTyped,
-            char_id,
-            word_id,
         }
     }
 
@@ -46,6 +43,19 @@ impl Letter {
         match self.typed_state {
             TypedState::Typed(c) => c != self.letter,
             _ => true,
+        }
+    }
+
+    /// Gets the span representation of this letter
+    pub fn to_span(&self) -> Span<'_> {
+        match self.typed_state {
+            TypedState::Typed(c) => Span::raw(c.to_string()).fg(if c == self.letter {
+                Color::White
+            } else {
+                Color::Red
+            }),
+            TypedState::NotTyped => Span::raw(self.letter.to_string()).fg(Color::Gray),
+            TypedState::Extra => Span::raw(self.letter.to_string()).fg(Color::Red),
         }
     }
 }

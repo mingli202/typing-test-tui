@@ -7,9 +7,6 @@ use super::letter::Letter;
 /// Represent a single word of the text to type
 #[derive(Debug)]
 pub struct Word {
-    /// Index of the word in the typing test
-    id: usize,
-
     /// The underlying word. Kept so we can easily render the word
     word: String,
 
@@ -22,14 +19,9 @@ pub struct Word {
 
 impl Word {
     /// Creates a new Word from the given string and id
-    pub fn new(text: &str, id: usize) -> Word {
+    pub fn new(text: &str) -> Word {
         Word {
-            letters: text
-                .chars()
-                .enumerate()
-                .map(|(i, letter)| Letter::new(letter, i, id))
-                .collect(),
-            id,
+            letters: text.chars().map(Letter::new).collect(),
             word: text.to_string(),
             last_typed_letter_index: 0,
         }
@@ -87,6 +79,15 @@ impl Word {
 
     pub fn get_letter_mut(&mut self, index: usize) -> Option<&mut Letter> {
         self.letters.get_mut(index)
+    }
+
+    /// Reset all its letters to their initial states.
+    /// Extras are dropped.
+    pub fn reset(&mut self) {
+        self.letters.truncate(self.actual_len());
+        self.letters
+            .iter_mut()
+            .for_each(|letter| letter.typed_state = TypedState::NotTyped);
     }
 }
 

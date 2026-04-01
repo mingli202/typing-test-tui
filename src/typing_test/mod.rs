@@ -1,11 +1,11 @@
 use std::fmt::Display;
 use std::time::{Duration, Instant};
 
-use color_eyre::owo_colors::Style;
 use itertools::Itertools;
+use ratatui::macros::line;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Paragraph, Widget, Wrap};
+use ratatui::widgets::{Paragraph, Widget};
 
 use self::letter::{Letter, TypedState};
 use self::word::Word;
@@ -23,7 +23,7 @@ pub struct TypingTest {
     words: Vec<Word>,
 
     /// The current word the user is typing
-    word_index: usize,
+    pub(super) word_index: usize,
 
     /// The current letter in the current word to be typed
     letter_index: usize,
@@ -38,11 +38,7 @@ pub struct TypingTest {
 impl TypingTest {
     /// Creates a new TypingTest with the given &str
     pub fn new(text: &str) -> Self {
-        let words: Vec<Word> = text
-            .split(" ")
-            .enumerate()
-            .map(|(id, word)| Word::new(word, id))
-            .collect();
+        let words: Vec<Word> = text.split(" ").map(Word::new).collect();
 
         TypingTest {
             word_index: 0,
@@ -51,6 +47,19 @@ impl TypingTest {
             time_ended: None,
             words,
         }
+    }
+
+    pub fn next(&mut self, text: &str) {
+        self.reset();
+        self.words = Self::to_words(text);
+    }
+
+    pub fn reset(&mut self) {
+        self.word_index = 0;
+        self.letter_index = 0;
+        self.time_started = None;
+        self.time_ended = None;
+        self.reset_words();
     }
 
     /// Processes the typed character. Returns whether the test is done.
@@ -73,9 +82,7 @@ impl TypingTest {
 
             let is_overshoot = self.letter_index >= word_len;
             if is_overshoot {
-                curr_word.push(
-                    Letter::new(c, word_len, self.word_index).with_typed_letter(TypedState::Extra),
-                );
+                curr_word.push(Letter::new(c).with_typed_letter(TypedState::Extra));
             } else {
                 let curr_letter = curr_word.get_letter_mut(self.letter_index).unwrap();
                 curr_letter.typed_state = TypedState::Typed(c);
@@ -101,13 +108,48 @@ impl TypingTest {
         self.words.iter().filter(|word| word.is_error()).count()
     }
 
-    /// Total number of letters typed excluding extras
-    pub fn total_letters_typed(&self) -> usize {
-        self.words.iter().map(|word| word.n_letters_typed()).sum()
+    /// Gets the numbers of wrong words up to the current word the user is typing
+    pub fn n_current_wrongs(&self) -> usize {
+        self.words[..self.word_index]
+            .iter()
+            .filter(|word| word.is_error())
+            .count()
+            + if self.words[self.word_index].letters[..self.letter_index]
+                .iter()
+                .any(|letter| letter.is_error())
+            {
+                1
+            } else {
+                0
+            }
     }
 
-    /// Starts the typing test timer
+    /// Total number of letters typed excluding extras
+    pub fn total_letters_typed(&self) -> usize {
+        self.words
+            .iter()
+            .map(|word| word.n_letters_typed())
+            .sum::<usize>()
+            + self.words.len()
+            - 1
+    }
+
+    /// Total number of letters typed excluding extras up to the currently typed word
+    pub fn current_letters_typed(&self) -> usize {
+        self.words[..self.word_index]
+            .iter()
+            .map(|word| word.n_letters_typed())
+            .sum::<usize>()
+            + self.word_index   // for spaces
+            + self.letter_index // for current word letters
+    }
+
+    /// Starts the typing test timer if it hasn't been started
     pub fn start(&mut self) {
+        if self.has_started() {
+            return;
+        }
+
         self.time_started = Some(Instant::now());
     }
 
@@ -118,7 +160,7 @@ impl TypingTest {
             Some(elapsed) => {
                 let final_typed_words =
                     self.total_letters_typed() as f32 / 5.0 - self.n_wrongs() as f32;
-                final_typed_words / elapsed.as_secs_f32()
+                60.0 * final_typed_words / elapsed.as_secs_f32()
             }
             None => 0.0,
         }
@@ -129,9 +171,21 @@ impl TypingTest {
         match self.elapsed_since_start_sec() {
             Some(elapsed) => {
                 let final_typed_words = self.total_letters_typed() as f32 / 5.0;
-                final_typed_words / elapsed.as_secs_f32()
+                60.0 * final_typed_words / elapsed.as_secs_f32()
             }
             None => 0.0,
+        }
+    }
+
+    /// Gets the current wpm at the time called
+    pub fn current_net_wpm(&self) -> f32 {
+        match self.elapsed_since_start_sec() {
+            Some(elapsed) if elapsed > Duration::from_secs(1) => {
+                let current_typed_words =
+                    self.current_letters_typed() as f32 / 5.0 - self.n_current_wrongs() as f32;
+                60.0 * current_typed_words / elapsed.as_secs_f32()
+            }
+            _ => 0.0,
         }
     }
 
@@ -200,6 +254,19 @@ impl TypingTest {
             .and_then(|word| word.get_letter_mut(letter_index))
     }
 
+    /// Get accuracy
+    pub fn accuracy(&self) -> usize {
+        let total_correct_letters = self.total_correct_letters_typed();
+        let total_letters = self.total_letters();
+
+        100 * total_correct_letters / total_letters
+    }
+
+    /// The amount of words ot type
+    pub fn n_words(&self) -> usize {
+        self.words.len()
+    }
+
     /// Handle the space character
     /// Moves the cursor to the next word and reset the letter index to 0
     /// If it's the last word, mark it as error and end the test
@@ -229,6 +296,93 @@ impl TypingTest {
                 .map_or_else(|| start_time.elapsed(), |now| now - start_time)
         })
     }
+
+    /// Get total correct letters
+    fn total_correct_letters_typed(&self) -> usize {
+        (self
+            .words
+            .iter()
+            .map(|word| {
+                word.letters
+                    .iter()
+                    .filter(|letter| !letter.is_error())
+                    .count()
+            })
+            .sum::<usize>()
+            + self.words.len())
+        .saturating_sub(1)
+    }
+
+    /// The total amount of characters of this test.
+    fn total_letters(&self) -> usize {
+        (self
+            .words
+            .iter()
+            .map(|word| word.actual_len())
+            .sum::<usize>()
+            + self.words.len())
+        .saturating_sub(1)
+    }
+
+    /// Text to words
+    fn to_words(text: &str) -> Vec<Word> {
+        text.split(" ").map(Word::new).collect()
+    }
+
+    /// Resets the state of its words
+    fn reset_words(&mut self) {
+        self.words.iter_mut().for_each(|word| {
+            word.reset();
+        });
+    }
+
+    /// Returns text representation and cursorline index
+    fn split_into_lines(&self, max_width: usize) -> (Text<'_>, usize) {
+        let mut lines: Vec<Line> = vec![];
+        let mut current_line: Line = line![];
+        let mut cursor_index = 0;
+
+        self.words.iter().enumerate().for_each(|(i, word)| {
+            let mut letters = word
+                .letters
+                .iter()
+                .map(|letter| letter.to_span())
+                .collect_vec();
+
+            // add space
+            letters.push(Span::raw(" "));
+
+            // draw cursor
+            if self.word_index == i {
+                if let Some(letter) = letters.get_mut(self.letter_index) {
+                    *letter = letter.clone().fg(Color::Black).bg(Color::Gray);
+                }
+
+                cursor_index = lines.len();
+            }
+
+            let line = Line::from(letters);
+            let width_so_far = current_line.width();
+
+            let is_overflow = width_so_far + line.width() >= max_width;
+            if is_overflow {
+                lines.push(current_line.clone());
+                current_line = line;
+
+                if self.word_index == i {
+                    cursor_index += 1;
+                }
+            } else {
+                current_line
+                    .spans
+                    .append(&mut line.into_iter().collect_vec());
+            }
+        });
+
+        lines.push(current_line);
+
+        (Text::from(lines), cursor_index)
+    }
 }
 
 impl Display for TypingTest {
@@ -246,36 +400,15 @@ impl Widget for &TypingTest {
     where
         Self: Sized,
     {
-        let text = self
-            .words
-            .iter()
-            .map(|word| {
-                word.letters
-                    .iter()
-                    .map(|letter| match letter.typed_state {
-                        TypedState::Typed(c) => {
-                            Span::raw(c.to_string()).fg(if c == letter.letter {
-                                Color::White
-                            } else {
-                                Color::Red
-                            })
-                        }
-                        TypedState::NotTyped => {
-                            Span::raw(letter.letter.to_string()).fg(Color::Gray)
-                        }
-                        TypedState::Extra => Span::raw(letter.letter.to_string()).fg(Color::Red),
-                    })
-                    .collect::<Vec<Span>>()
-            })
-            .collect::<Vec<Vec<Span>>>()
-            .join(&Span::raw(" "));
+        let (text, cursor_index) = self.split_into_lines(area.width as usize);
 
-        let line = Line::from(text);
-        let text = Text::from(line);
+        let offset = if cursor_index == 0 {
+            0
+        } else {
+            cursor_index as u16 - 1
+        };
 
-        Paragraph::new(text)
-            .wrap(Wrap { trim: true })
-            .render(area, buf);
+        Paragraph::new(text).scroll((offset, 0)).render(area, buf);
     }
 }
 
@@ -536,7 +669,7 @@ mod typing_test_test {
             test.on_type(c);
         });
 
-        assert_eq!(test.total_letters_typed(), 9);
+        assert_eq!(test.total_letters_typed(), 10);
     }
 
     #[test]
@@ -642,5 +775,47 @@ mod typing_test_test {
             .map(|time_started| time_started + Duration::from_secs(10));
 
         assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
+    }
+
+    #[test]
+    fn reset_words() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel word!~asdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        test.reset();
+
+        assert_eq!(
+            test.words[0]
+                .letters
+                .iter()
+                .map(|letter| letter.typed_state.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+            ]
+        );
+
+        assert_eq!(
+            test.words[1]
+                .letters
+                .iter()
+                .map(|letter| letter.typed_state.clone())
+                .collect::<Vec<TypedState>>(),
+            vec![
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+                TypedState::NotTyped,
+            ]
+        );
     }
 }
