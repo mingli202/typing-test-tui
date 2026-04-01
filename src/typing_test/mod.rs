@@ -281,10 +281,7 @@ impl TypingTest {
 
     /// Text to words
     fn to_words(text: &str) -> Vec<Word> {
-        text.split(" ")
-            .enumerate()
-            .map(|(id, word)| Word::new(word))
-            .collect()
+        text.split(" ").map(Word::new).collect()
     }
 
     /// Resets the state of its words
