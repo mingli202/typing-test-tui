@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{self, Event, KeyCode};
@@ -181,7 +182,9 @@ impl App {
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        if let Ok(event) = event::read() {
+        if event::poll(Duration::from_millis(250))?
+            && let Ok(event) = event::read()
+        {
             if let Some(event::KeyEvent {
                 code: KeyCode::Esc, ..
             }) = event.as_key_press_event()
@@ -192,6 +195,7 @@ impl App {
             let transition = State::handle_events(self, event);
             self.handle_transition(transition);
         }
+
         Ok(())
     }
 
