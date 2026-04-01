@@ -2,8 +2,10 @@ use std::io;
 
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{self, Event, KeyCode};
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Constraint, Offset, Rect};
 use ratatui::macros::text;
+use ratatui::style::{Color, Stylize};
+use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Widget};
 use ratatui::{DefaultTerminal, Frame};
 
@@ -38,16 +40,16 @@ impl Widget for &State {
     where
         Self: Sized,
     {
+        let typing_test_container = area
+            .centered_vertically(Constraint::Length(3))
+            .centered_horizontally(Constraint::Max(80));
+
         match self {
             State::TypingTestState {
                 typing_test,
                 is_typing,
             } => {
-                let container = area
-                    .centered_vertically(Constraint::Length(3))
-                    .centered_horizontally(Constraint::Max(80));
-
-                typing_test.render(container, buf);
+                typing_test.render(typing_test_container, buf);
             }
             State::EndScreenState {
                 wpm,
@@ -63,6 +65,8 @@ impl Widget for &State {
                 Paragraph::new(text).centered().render(area, buf);
             }
         }
+
+        State::render_bottom_menu(area, buf);
     }
 }
 
@@ -126,6 +130,16 @@ impl State {
                 Transition::None
             }
         }
+    }
+
+    /// Renders the menu of keybinds at the bottom
+    fn render_bottom_menu(area: Rect, buf: &mut Buffer) {
+        let mut menu_area = area.centered_horizontally(Constraint::Percentage(50));
+        menu_area.y = area.bottom() - 2;
+
+        Line::raw("Next <Tab> Quit <Esc>")
+            .fg(Color::Gray)
+            .render(menu_area, buf);
     }
 }
 
