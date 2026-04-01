@@ -6,7 +6,7 @@ use ratatui::layout::Constraint;
 use ratatui::macros::line;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Paragraph, Widget, Wrap};
+use ratatui::widgets::{Paragraph, Widget};
 
 use self::letter::{Letter, TypedState};
 use self::word::Word;
@@ -230,16 +230,6 @@ impl TypingTest {
         100 * total_correct_letters / total_letters
     }
 
-    /// Get the index of the letter if all the letter were flattened into a singlular array
-    fn cursor_index(&self) -> usize {
-        self.words[0..self.word_index]
-            .iter()
-            .map(|word| word.letters_len())
-            .sum::<usize>()
-            + self.word_index
-            + self.letter_index
-    }
-
     /// Handle the space character
     /// Moves the cursor to the next word and reset the letter index to 0
     /// If it's the last word, mark it as error and end the test
@@ -311,11 +301,12 @@ impl TypingTest {
     }
 
     /// Returns list
-    fn split_into_lines(&self, max_width: usize) -> Text<'_> {
+    fn split_into_lines(&self, max_width: usize) -> (Text<'_>, usize) {
         let mut lines: Vec<Line> = vec![];
         let mut current_line: Line = line![];
+        let mut cursor_index = 0;
 
-        self.words.iter().for_each(|word| {
+        self.words.iter().enumerate().for_each(|(i, word)| {
             let mut letters = word
                 .letters
                 .iter()
@@ -325,12 +316,25 @@ impl TypingTest {
             // add space
             letters.push(Span::raw(" "));
 
+            if self.word_index == i {
+                letters[self.letter_index] = letters[self.letter_index]
+                    .clone()
+                    .fg(Color::Black)
+                    .bg(Color::Gray);
+
+                cursor_index = lines.len();
+            }
+
             let line = Line::from(letters);
             let width_so_far = current_line.width();
 
             if width_so_far + line.width() >= max_width {
                 lines.push(current_line.clone());
                 current_line = line;
+
+                if self.word_index == i {
+                    cursor_index += 1;
+                }
             } else {
                 current_line
                     .spans
@@ -340,7 +344,7 @@ impl TypingTest {
 
         lines.push(current_line);
 
-        Text::from(lines)
+        (Text::from(lines), cursor_index)
     }
 }
 
@@ -363,9 +367,17 @@ impl Widget for &TypingTest {
             .centered_vertically(Constraint::Length(3))
             .centered_horizontally(Constraint::Max(80));
 
-        let text = self.split_into_lines(container.width as usize);
+        let (text, cursor_index) = self.split_into_lines(container.width as usize);
 
-        Paragraph::new(text).render(container, buf);
+        let offset = if cursor_index == 0 {
+            0
+        } else {
+            cursor_index as u16 - 1
+        };
+
+        Paragraph::new(text)
+            .scroll((offset, 0))
+            .render(container, buf);
     }
 }
 
