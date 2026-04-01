@@ -51,7 +51,7 @@ impl Widget for &State {
             } => {
                 typing_test.render(typing_test_area, buf);
 
-                let wpm = typing_test.current_net_wpm();
+                let wpm = f32::max(typing_test.current_net_wpm(), 0.0);
                 let cur_index = typing_test.word_index;
                 let n_words = typing_test.n_words();
                 let stats_area = typing_test_area.offset(Offset { x: 0, y: -3 });
