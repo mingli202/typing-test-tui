@@ -25,7 +25,7 @@ pub enum Transition {
 }
 
 #[derive(Default)]
-struct TypingStats {
+pub struct TypingStats {
     wpm: f32,
     current_index: usize,
 }
@@ -118,10 +118,11 @@ impl State {
                             typing_test.on_backspace();
                             Transition::None
                         }
-                        KeyCode::Tab => {
-                            typing_test.next(&app.data.get_random_quote().quote);
-                            Transition::None
-                        }
+                        KeyCode::Tab => Transition::Switch(State::TypingTestState {
+                            typing_test: TypingTest::new(&app.data.get_random_quote().quote),
+                            stats_last_updated_time: Instant::now(),
+                            stats: TypingStats::default(),
+                        }),
                         _ => Transition::None,
                     }
                 } else {
