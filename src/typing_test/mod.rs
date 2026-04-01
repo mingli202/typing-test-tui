@@ -291,7 +291,7 @@ impl TypingTest {
         });
     }
 
-    /// Returns list
+    /// Returns text representation and cursorline index
     fn split_into_lines(&self, max_width: usize) -> (Text<'_>, usize) {
         let mut lines: Vec<Line> = vec![];
         let mut current_line: Line = line![];
