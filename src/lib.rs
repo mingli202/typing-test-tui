@@ -87,7 +87,7 @@ impl Widget for &State {
                     format!(""),
                     format!("{}", source),
                 ];
-                let stats_area = layout[1];
+                let stats_area = layout[1].offset(Offset { x: 0, y: 2 });
 
                 Paragraph::new(text)
                     .wrap(Wrap { trim: true })
