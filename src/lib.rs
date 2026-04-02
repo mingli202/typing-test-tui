@@ -3,11 +3,12 @@ use std::time::{Duration, Instant};
 
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{self, Event, KeyCode};
-use ratatui::layout::{Constraint, Offset, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Offset, Rect};
 use ratatui::macros::{line, text};
-use ratatui::style::{Color, Stylize};
+use ratatui::style::{Color, Style, Stylize};
+use ratatui::symbols::Marker;
 use ratatui::text::Line;
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 
 use self::data::Data;
@@ -26,7 +27,7 @@ pub enum Transition {
 
 #[derive(Default)]
 pub struct TypingStats {
-    wpm: f32,
+    wpm: f64,
     current_index: usize,
 }
 
@@ -35,11 +36,14 @@ pub enum State {
         typing_test: TypingTest,
         stats_last_updated_time: Instant,
         stats: TypingStats,
+        data: Data,
+        history: Vec<(f64, f64)>,
     },
     EndScreenState {
-        wpm: f32,
+        wpm: f64,
         accuracy: usize,
         source: String,
+        history: Vec<(f64, f64)>,
     },
 }
 
@@ -48,9 +52,8 @@ impl Widget for &State {
     where
         Self: Sized,
     {
-        let typing_test_area = area
-            .centered_vertically(Constraint::Length(3))
-            .centered_horizontally(Constraint::Max(80));
+        let area = area.centered_horizontally(Constraint::Max(80));
+        let typing_test_area = area.centered_vertically(Constraint::Length(3));
 
         match self {
             State::TypingTestState {
@@ -70,14 +73,28 @@ impl Widget for &State {
                 wpm,
                 accuracy,
                 source,
+                history,
+                ..
             } => {
-                let text = text![format!("WPM: {:.1}", wpm), format!("ACC: {}%", accuracy),];
-                let area = area.centered(
-                    Constraint::Length(text.width() as u16),
-                    Constraint::Length(text.height() as u16),
-                );
+                let layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(area);
 
-                Paragraph::new(text).centered().render(area, buf);
+                let text = text![
+                    format!("WPM: {:.1}", wpm),
+                    format!("ACC: {}%", accuracy),
+                    format!(""),
+                    format!("{}", source),
+                ];
+                let stats_area = layout[1].offset(Offset { x: 0, y: 2 });
+
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: true })
+                    .centered()
+                    .render(stats_area, buf);
+
+                State::render_endscreen_graph(layout[0], buf, history);
             }
         }
 
@@ -86,17 +103,26 @@ impl Widget for &State {
 }
 
 impl State {
-    pub fn new(initial_text: &str) -> Self {
+    pub fn new_typing_test() -> Self {
+        let data = Data::get_random_quote();
+
         State::TypingTestState {
-            typing_test: TypingTest::new(initial_text),
+            typing_test: TypingTest::new(&data.text),
             stats_last_updated_time: Instant::now(),
             stats: TypingStats::default(),
+            data,
+            history: vec![],
         }
     }
 
     fn handle_events(app: &mut App, event: Event) -> Transition {
         match &mut app.state {
-            State::TypingTestState { typing_test, .. } => {
+            State::TypingTestState {
+                typing_test,
+                data,
+                history,
+                ..
+            } => {
                 if let Some(key) = event.as_key_press_event() {
                     match key.code {
                         KeyCode::Char(c) => {
@@ -108,7 +134,8 @@ impl State {
                                 return Transition::Switch(State::EndScreenState {
                                     wpm,
                                     accuracy,
-                                    source: "".to_string(),
+                                    source: data.source.clone(),
+                                    history: history.clone(),
                                 });
                             }
 
@@ -118,11 +145,7 @@ impl State {
                             typing_test.on_backspace();
                             Transition::None
                         }
-                        KeyCode::Tab => Transition::Switch(State::TypingTestState {
-                            typing_test: TypingTest::new(&app.data.get_random_quote().quote),
-                            stats_last_updated_time: Instant::now(),
-                            stats: TypingStats::default(),
-                        }),
+                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
                         _ => Transition::None,
                     }
                 } else {
@@ -133,11 +156,7 @@ impl State {
                 if let Some(key) = event.as_key_press_event() {
                     return match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => Transition::Quit,
-                        KeyCode::Tab => Transition::Switch(State::TypingTestState {
-                            typing_test: TypingTest::new(&app.data.get_random_quote().quote),
-                            stats_last_updated_time: Instant::now(),
-                            stats: TypingStats::default(),
-                        }),
+                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
                         _ => Transition::None,
                     };
                 }
@@ -153,12 +172,20 @@ impl State {
                 typing_test,
                 stats_last_updated_time,
                 stats,
+                history,
+                ..
             } => {
                 if typing_test.has_started()
+                    && matches!(typing_test.elapsed_since_start_sec(), Some(duration) if duration > Duration::from_secs(1))
                     && stats_last_updated_time.elapsed() > Duration::from_secs(1)
                 {
                     stats.wpm = typing_test.current_net_wpm();
                     stats.current_index = typing_test.word_index;
+
+                    if let Some(elapsed) = typing_test.elapsed_since_start_sec() {
+                        history.push((elapsed.as_secs_f64(), stats.wpm));
+                    }
+
                     *stats_last_updated_time = Instant::now();
                 }
             }
@@ -174,23 +201,64 @@ impl State {
 
         line.render(menu_area, buf);
     }
+
+    fn render_endscreen_graph(area: Rect, buf: &mut Buffer, history: &[(f64, f64)]) {
+        let datasets = vec![
+            Dataset::default()
+                .name("wpm history")
+                .marker(Marker::Braille)
+                .graph_type(GraphType::Line)
+                .data(history),
+        ];
+
+        let max_wpm = history
+            .iter()
+            .map(|(_, wpm)| wpm.ceil() as i32)
+            .max()
+            .unwrap_or(0);
+
+        let y_axis = Axis::default()
+            .title("wpm")
+            .style(Style::default().white())
+            .bounds([0.0, max_wpm as f64])
+            .labels([
+                "0".to_string(),
+                (max_wpm / 2).to_string(),
+                max_wpm.to_string(),
+            ]);
+
+        let first_instant = history.first().unwrap_or(&(0.0, 0.0)).0;
+        let last_instant = history.last().unwrap_or(&(0.0, 0.0)).0;
+
+        let x_axis = Axis::default()
+            .title("time (s)")
+            .style(Style::default().white())
+            .bounds([first_instant, last_instant])
+            .labels([
+                format!("{:.0}", first_instant),
+                format!("{:.0}", last_instant / 2.0),
+                format!("{:.1}", last_instant),
+            ]);
+
+        Chart::new(datasets)
+            .x_axis(x_axis)
+            .y_axis(y_axis)
+            .render(area, buf);
+    }
 }
 
 pub struct App {
     state: State,
     history: Vec<State>,
     exit: bool,
-    data: Data,
 }
 
 impl App {
-    pub fn new(data: Data) -> Self {
-        let initial_text = data.get_random_quote().quote.clone();
+    pub fn new() -> Self {
         App {
-            state: State::new(&initial_text),
+            state: State::new_typing_test(),
             history: vec![],
             exit: false,
-            data,
         }
     }
 
@@ -237,5 +305,11 @@ impl App {
             }
             Transition::None => (),
         }
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }

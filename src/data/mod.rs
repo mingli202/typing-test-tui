@@ -1,8 +1,6 @@
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::error::Error;
-use std::{fs, io};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quote {
@@ -14,38 +12,56 @@ pub struct Quote {
 
 #[derive(Debug, Default)]
 pub struct Data {
-    words: Vec<String>,
-    quotes: Vec<Quote>,
+    pub text: String,
+    pub source: String,
 }
 
 impl Data {
-    pub fn get_words(&self) -> &Vec<String> {
-        &self.words
+    pub fn get_random_quote() -> Data {
+        let mut rng = rand::rng();
+        let quotes = Data::get_quotes();
+        let Quote { source, quote } = quotes.choose(&mut rng).unwrap();
+        Data {
+            source: source.clone(),
+            text: quote.clone(),
+        }
     }
 
-    pub fn get_quotes(&self) -> &Vec<Quote> {
-        &self.quotes
+    pub fn get_n_random_words(n: usize) -> Data {
+        let mut rng = rand::rng();
+
+        let mut v = Vec::with_capacity(n);
+
+        let mut last = -1;
+        let mut ind = -1;
+
+        let words = Data::get_words();
+
+        for _ in 0..n {
+            while ind == last {
+                ind = rng.random_range(0..words.len()) as i32;
+            }
+
+            v.push(words[ind as usize].clone());
+
+            last = ind;
+        }
+
+        Data {
+            text: v.join(" "),
+            source: format!("{} words", n),
+        }
     }
 
-    pub fn new_offline(
-        words_path: Option<String>,
-        quotes_path: Option<String>,
-    ) -> io::Result<Data> {
-        let words = serde_json::from_str::<Vec<String>>(
-            &(if let Some(p) = words_path {
-                fs::read_to_string(p)?
-            } else {
-                include_str!("../../assets/english.json").to_string()
-            }),
-        )?;
+    fn get_words() -> Vec<String> {
+        serde_json::from_str::<Vec<String>>(include_str!("../../assets/english.json")).unwrap()
+    }
 
-        let quotes = serde_json::from_str::<HashMap<String, Vec<String>>>(
-            &(if let Some(p) = quotes_path {
-                fs::read_to_string(p)?
-            } else {
-                include_str!("../../assets/quotes.json").to_string()
-            }),
-        )?
+    fn get_quotes() -> Vec<Quote> {
+        serde_json::from_str::<HashMap<String, Vec<String>>>(include_str!(
+            "../../assets/quotes.json"
+        ))
+        .unwrap()
         .into_iter()
         .flat_map(|(src, qs)| {
             let mut qs = qs;
@@ -62,73 +78,7 @@ impl Data {
             v
         })
         .filter(|q| !q.quote.is_empty())
-        .collect();
-
-        Ok(Data { words, quotes })
-    }
-
-    pub fn new_online(words_file: String) -> Result<Self, Box<dyn Error>> {
-        let words = fs::read_to_string(words_file)?
-            .split('\n')
-            .map(|w| w.to_string())
-            .collect();
-
-        Ok(Data {
-            words,
-            quotes: vec![],
-        })
-    }
-
-    pub fn get_random_word(&self) -> &str {
-        let mut rng = rand::rng();
-        self.words.choose(&mut rng).unwrap()
-    }
-
-    pub fn get_random_quote(&self) -> &Quote {
-        let mut rng = rand::rng();
-        self.quotes.choose(&mut rng).unwrap()
-    }
-
-    pub fn get_n_random_words(&self, n: usize) -> Vec<&String> {
-        let mut rng = rand::rng();
-
-        let mut v = Vec::with_capacity(n);
-
-        let mut last = -1;
-        let mut ind = -1;
-
-        for _ in 0..n {
-            while ind == last {
-                ind = rng.random_range(0..self.words.len()) as i32;
-            }
-
-            v.push(&self.words[ind as usize]);
-
-            last = ind;
-        }
-
-        v
-    }
-
-    pub fn get_n_random_quotes(&self, n: usize) -> Vec<&Quote> {
-        let mut rng = rand::rng();
-
-        let mut v = Vec::with_capacity(n);
-
-        let mut last = -1;
-        let mut ind = -1;
-
-        for _ in 0..n {
-            while ind == last {
-                ind = rng.random_range(0..self.quotes.len()) as i32;
-            }
-
-            v.push(&self.quotes[ind as usize]);
-
-            last = ind;
-        }
-
-        v
+        .collect()
     }
 }
 
@@ -220,8 +170,7 @@ mod tests {
     }
     #[test]
     fn format() {
-        let data = Data::new_offline(None, None).unwrap();
-        let quotes = data.get_quotes();
+        let quotes = Data::get_quotes();
 
         for quote in quotes {
             assert!(
@@ -1051,8 +1000,7 @@ mod tests {
             "self-belief",
         ]);
 
-        let data = Data::new_offline(None, None).unwrap();
-        let quotes = data.get_quotes();
+        let quotes = Data::get_quotes();
 
         let all_words = quotes
             .iter()
@@ -1112,27 +1060,19 @@ mod tests {
 
     #[test]
     fn random_words_and_quotes() {
-        let data = Data::new_offline(None, None).unwrap();
-        let random_words = data.get_n_random_words(10);
-        let random_quotes = data.get_n_random_quotes(10);
+        let random_words = Data::get_n_random_words(10);
 
-        assert_eq!(10, random_words.len());
-        assert_eq!(10, random_quotes.len());
+        assert_eq!(10, random_words.text.split(" ").count());
 
         let mut last = String::new();
 
+        let random_words = random_words.text.split(" ").collect::<Vec<&str>>();
+
         for word in random_words {
-            if last == *word {
+            if last == word {
                 panic!("Repeating word");
             }
-            last = (*word).clone();
-        }
-
-        for quote in random_quotes {
-            if last == *quote.quote {
-                panic!("Repeating quote");
-            }
-            last = quote.quote.clone();
+            last = word.to_string()
         }
     }
 }
