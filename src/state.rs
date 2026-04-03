@@ -169,8 +169,9 @@ impl State {
                 history,
                 ..
             } => {
+                let elapsed = typing_test.elapsed_since_start_sec();
                 if typing_test.has_started()
-                    && matches!(typing_test.elapsed_since_start_sec(), Some(duration) if duration > Duration::from_secs(1))
+                    && matches!(elapsed, Some(duration) if duration > Duration::from_secs(1))
                 {
                     let wpm = typing_test.current_net_wpm();
                     let wpm = if wpm < 0.0 { 0.0 } else { wpm };
@@ -182,7 +183,7 @@ impl State {
                         *stats_last_updated_time = Instant::now();
                     }
 
-                    if let Some(elapsed) = typing_test.elapsed_since_start_sec() {
+                    if let Some(elapsed) = elapsed {
                         history.push((elapsed.as_secs_f64(), wpm));
                     }
                 }
