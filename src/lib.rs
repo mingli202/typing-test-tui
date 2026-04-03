@@ -163,7 +163,7 @@ impl State {
         }
     }
 
-    fn on_tick(&mut self) {
+    fn on_tick(&mut self) -> Action {
         match self {
             Self::TypingTestState {
                 typing_test,
@@ -174,20 +174,24 @@ impl State {
             } => {
                 if typing_test.has_started()
                     && matches!(typing_test.elapsed_since_start_sec(), Some(duration) if duration > Duration::from_secs(1))
-                    && stats_last_updated_time.elapsed() > Duration::from_secs(1)
                 {
-                    stats.wpm = typing_test.current_net_wpm();
-                    stats.current_index = typing_test.word_index;
+                    let wpm = typing_test.current_net_wpm();
+                    if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
+                        stats.wpm = wpm;
+                        stats.current_index = typing_test.word_index;
 
-                    if let Some(elapsed) = typing_test.elapsed_since_start_sec() {
-                        history.push((elapsed.as_secs_f64(), stats.wpm));
+                        *stats_last_updated_time = Instant::now();
                     }
 
-                    *stats_last_updated_time = Instant::now();
+                    if let Some(elapsed) = typing_test.elapsed_since_start_sec() {
+                        history.push((elapsed.as_secs_f64(), wpm));
+                    }
                 }
             }
             Self::EndScreenState { .. } => {}
-        }
+        };
+
+        Action::None
     }
 
     /// Renders the menu of keybinds at the bottom
@@ -260,7 +264,6 @@ impl App {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
-            self.state.on_tick();
         }
         Ok(())
     }
@@ -283,6 +286,9 @@ impl App {
             let transition = self.state.handle_events(event);
             self.handle_transition(transition);
         }
+
+        let transition = self.state.on_tick();
+        self.handle_transition(transition);
 
         Ok(())
     }
