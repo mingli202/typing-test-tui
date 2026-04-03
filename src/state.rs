@@ -173,6 +173,8 @@ impl State {
                     && matches!(typing_test.elapsed_since_start_sec(), Some(duration) if duration > Duration::from_secs(1))
                 {
                     let wpm = typing_test.current_net_wpm();
+                    let wpm = if wpm < 0.0 { 0.0 } else { wpm };
+
                     if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
                         stats.wpm = wpm;
                         stats.current_index = typing_test.word_index;
