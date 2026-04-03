@@ -87,12 +87,6 @@ impl State {
         }
     }
 
-    pub fn new_typing_test(&mut self) {
-        self.history.clear();
-        self.data = self.mode.get_data();
-        self.screen = Screen::new_typing_test(&self.data.text);
-    }
-
     pub fn handle_events(&mut self, event: Event) -> Action {
         match &mut self.screen {
             Screen::TypingTestState { typing_test, .. } => {
@@ -114,6 +108,7 @@ impl State {
                         KeyCode::Tab => {
                             self.new_typing_test();
                         }
+                        KeyCode::Left => {}
                         _ => {}
                     }
                 }
@@ -166,6 +161,13 @@ impl State {
         };
 
         Action::None
+    }
+
+    /// get a fresh typing test
+    fn new_typing_test(&mut self) {
+        self.history.clear();
+        self.data = self.mode.get_data();
+        self.screen = Screen::new_typing_test(&self.data.text);
     }
 
     /// Renders the menu of keybinds at the bottom
