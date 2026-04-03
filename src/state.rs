@@ -96,6 +96,7 @@ impl Widget for &State {
 }
 
 impl State {
+    /// Gets a fresh typing test
     pub fn new_typing_test() -> Self {
         let data = Data::get_random_quote();
 
@@ -174,7 +175,6 @@ impl State {
                     && matches!(elapsed, Some(duration) if duration > Duration::from_secs(1))
                 {
                     let wpm = typing_test.current_net_wpm();
-                    let wpm = if wpm < 0.0 { 0.0 } else { wpm };
 
                     if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
                         stats.wpm = wpm;
@@ -203,6 +203,9 @@ impl State {
         line.render(menu_area, buf);
     }
 
+    /// Renders the wpm history graph
+    /// If there are not data or the bounds are equal, ratatui's Chart handles it by showing no
+    /// data.
     fn render_endscreen_graph(area: Rect, buf: &mut Buffer, history: &[(f64, f64)]) {
         let datasets = vec![
             Dataset::default()
@@ -217,14 +220,16 @@ impl State {
             .max()
             .unwrap_or(0);
 
+        // Make the graph go to 1 if it's less for prettier graph
+        let max_wpm = if max_wpm <= 1 { 1.0 } else { max_wpm as f64 };
         let y_axis = Axis::default()
             .title("wpm")
             .style(Style::default().white())
-            .bounds([0.0, max_wpm as f64])
+            .bounds([0.0, max_wpm])
             .labels([
-                "0".to_string(),
-                (max_wpm / 2).to_string(),
-                max_wpm.to_string(),
+                "0.0".to_string(),
+                format!("{:.1}", max_wpm / 2.0),
+                format!("{:.1}", max_wpm),
             ]);
 
         let first_instant = history.first().unwrap_or(&(0.0, 0.0)).0;
