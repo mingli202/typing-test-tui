@@ -57,7 +57,7 @@ impl App {
 
     fn handle_transition(&mut self, transition: Action) {
         match transition {
-            Action::Switch(next_state) => self.state = next_state,
+            // Action::Switch(next_state) => self.state = next_state,
             Action::Quit => self.exit = true,
             Action::None => (),
         }

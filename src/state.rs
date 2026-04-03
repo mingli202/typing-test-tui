@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use itertools::Itertools;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{Event, KeyCode};
 use ratatui::layout::{Constraint, Direction, Layout, Offset, Rect};
@@ -15,8 +14,8 @@ use crate::typing_test::TypingTest;
 
 pub enum Action {
     None,
-    Switch(State),
     Quit,
+    // Switch(State),
 }
 
 #[derive(Default)]
@@ -52,6 +51,7 @@ pub enum Screen {
         typing_test: TypingTest,
         stats_last_updated_time: Instant,
         stats: TypingStats,
+        selected_mode: Mode,
     },
     EndScreenState {
         wpm: f64,
@@ -61,11 +61,12 @@ pub enum Screen {
 
 impl Screen {
     /// Gets a fresh typing test
-    pub fn new_typing_test(text: &str) -> Self {
+    pub fn new_typing_test(text: &str, mode: Mode) -> Self {
         Screen::TypingTestState {
             typing_test: TypingTest::new(text),
             stats_last_updated_time: Instant::now(),
             stats: TypingStats::default(),
+            selected_mode: mode,
         }
     }
 
@@ -81,7 +82,7 @@ impl State {
         let data = mode.get_data();
         State {
             history: vec![],
-            screen: Screen::new_typing_test(&data.text),
+            screen: Screen::new_typing_test(&data.text, mode.clone()),
             mode,
             data,
         }
@@ -89,7 +90,11 @@ impl State {
 
     pub fn handle_events(&mut self, event: Event) -> Action {
         match &mut self.screen {
-            Screen::TypingTestState { typing_test, .. } => {
+            Screen::TypingTestState {
+                typing_test,
+                selected_mode,
+                ..
+            } => {
                 if let Some(key) = event.as_key_press_event() {
                     match key.code {
                         KeyCode::Char(c) => {
@@ -108,7 +113,34 @@ impl State {
                         KeyCode::Tab => {
                             self.new_typing_test();
                         }
-                        KeyCode::Left => {}
+                        KeyCode::Left => {
+                            *selected_mode = handle_left_arrow_in_selection(selected_mode);
+                            if !matches!(selected_mode, Mode::Words(0)) {
+                                self.mode = selected_mode.clone();
+                                self.new_typing_test();
+                            }
+                        }
+                        KeyCode::Right => {
+                            *selected_mode = handle_right_arrow_in_selection(selected_mode);
+                            if !matches!(selected_mode, Mode::Words(0)) {
+                                self.mode = selected_mode.clone();
+                                self.new_typing_test();
+                            }
+                        }
+                        KeyCode::Up => {
+                            *selected_mode = handle_up_arrow_in_selection(selected_mode);
+                            if !matches!(selected_mode, Mode::Words(0)) {
+                                self.mode = selected_mode.clone();
+                                self.new_typing_test();
+                            }
+                        }
+                        KeyCode::Down => {
+                            *selected_mode = handle_down_arrow_in_selection(selected_mode);
+                            if !matches!(selected_mode, Mode::Words(0)) {
+                                self.mode = selected_mode.clone();
+                                self.new_typing_test();
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -167,7 +199,7 @@ impl State {
     fn new_typing_test(&mut self) {
         self.history.clear();
         self.data = self.mode.get_data();
-        self.screen = Screen::new_typing_test(&self.data.text);
+        self.screen = Screen::new_typing_test(&self.data.text, self.mode.clone());
     }
 
     /// Renders the menu of keybinds at the bottom
@@ -251,32 +283,85 @@ impl State {
         let mut quote_text = span!("Quote");
         let mut word_text = span!("Words");
 
-        let mut choices = vec![span!("10"), span!("25"), span!("50"), span!("100")];
-
-        match mode {
+        let selection = match mode {
             Mode::Quote => {
                 quote_text = highlight(quote_text);
+                text![line![quote_text, span!(" "), word_text],]
             }
             Mode::Words(n) => {
+                let mut choices = vec![span!("10"), span!("25"), span!("50"), span!("100")];
                 let n = n.to_string();
-                word_text = highlight(word_text);
 
                 if let Some(chosen) = choices.iter_mut().find(|choice| *choice.content == n) {
                     *chosen = highlight(chosen.clone());
+                    word_text = word_text.fg(Color::Black).bg(Color::DarkGray);
+                } else {
+                    word_text = highlight(word_text);
                 }
+                let choices: Vec<Span> =
+                    itertools::Itertools::intersperse(choices.into_iter(), span!(" ")).collect();
+
+                text![
+                    line![quote_text, span!(" "), word_text],
+                    span!(" "),
+                    Line::from(choices)
+                ]
             }
-        }
-
-        let choices: Vec<Span> =
-            itertools::Itertools::intersperse(choices.into_iter(), span!(" ")).collect();
-
-        let selection = text![
-            line![quote_text, span!(" "), word_text],
-            span!(" "),
-            Line::from(choices)
-        ];
+        };
 
         selection.centered().render(area, buf);
+    }
+}
+
+fn handle_left_arrow_in_selection(mode: &Mode) -> Mode {
+    match mode {
+        Mode::Quote => Mode::Words(0),
+        Mode::Words(n) => match n {
+            10 => Mode::Words(100),
+            25 => Mode::Words(10),
+            50 => Mode::Words(25),
+            100 => Mode::Words(50),
+            _ => Mode::Quote,
+        },
+    }
+}
+
+fn handle_right_arrow_in_selection(mode: &Mode) -> Mode {
+    match mode {
+        Mode::Quote => Mode::Words(0),
+        Mode::Words(n) => match n {
+            10 => Mode::Words(25),
+            25 => Mode::Words(50),
+            50 => Mode::Words(100),
+            100 => Mode::Words(10),
+            _ => Mode::Quote,
+        },
+    }
+}
+
+fn handle_up_arrow_in_selection(mode: &Mode) -> Mode {
+    match mode {
+        Mode::Quote => Mode::Quote,
+        Mode::Words(n) => match n {
+            10 => Mode::Words(0),
+            25 => Mode::Words(0),
+            50 => Mode::Words(0),
+            100 => Mode::Words(0),
+            _ => Mode::Words(0),
+        },
+    }
+}
+
+fn handle_down_arrow_in_selection(mode: &Mode) -> Mode {
+    match mode {
+        Mode::Quote => Mode::Quote,
+        Mode::Words(n) => match n {
+            10 => Mode::Words(10),
+            25 => Mode::Words(25),
+            50 => Mode::Words(50),
+            100 => Mode::Words(100),
+            _ => Mode::Words(10),
+        },
     }
 }
 
@@ -290,7 +375,10 @@ impl Widget for &State {
 
         match &self.screen {
             Screen::TypingTestState {
-                typing_test, stats, ..
+                typing_test,
+                stats,
+                selected_mode,
+                ..
             } => {
                 typing_test.render(typing_test_area, buf);
 
@@ -302,7 +390,7 @@ impl Widget for &State {
 
                 line.render(stats_area, buf);
 
-                State::render_mode_selection(area, buf, &self.mode);
+                State::render_mode_selection(area, buf, selected_mode);
                 State::render_bottom_menu_typing(area, buf);
             }
             Screen::EndScreenState { wpm, accuracy } => {
