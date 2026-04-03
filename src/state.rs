@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
+use itertools::Itertools;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{Event, KeyCode};
 use ratatui::layout::{Constraint, Direction, Layout, Offset, Rect};
-use ratatui::macros::{line, text};
+use ratatui::macros::{line, span, text};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::Marker;
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 
 use crate::data::Data;
@@ -168,7 +169,16 @@ impl State {
     }
 
     /// Renders the menu of keybinds at the bottom
-    fn render_bottom_menu(area: Rect, buf: &mut Buffer) {
+    fn render_bottom_menu_typing(area: Rect, buf: &mut Buffer) {
+        let line = Line::raw("Next <Tab>  Quit <Esc>").fg(Color::Gray);
+        let mut menu_area = area.centered_horizontally(Constraint::Length(line.width() as u16));
+        menu_area.y = area.bottom() - 2;
+
+        line.render(menu_area, buf);
+    }
+
+    /// Renders the menu of keybinds at the bottom
+    fn render_bottom_menu_end_screen(area: Rect, buf: &mut Buffer) {
         let line = Line::raw("Next <Tab>  Quit <Esc>").fg(Color::Gray);
         let mut menu_area = area.centered_horizontally(Constraint::Length(line.width() as u16));
         menu_area.y = area.bottom() - 2;
@@ -223,6 +233,43 @@ impl State {
             .y_axis(y_axis)
             .render(area, buf);
     }
+
+    /// Render mode selection at the top
+    fn render_mode_selection(area: Rect, buf: &mut Buffer, mode: &Mode) {
+        fn highlight(text: Span) -> Span {
+            text.fg(Color::Black).bg(Color::White)
+        }
+
+        let mut quote_text = span!("Quote");
+        let mut word_text = span!("Words");
+
+        let mut choices = vec![span!("10"), span!("25"), span!("50"), span!("100")];
+
+        match mode {
+            Mode::Quote => {
+                quote_text = highlight(quote_text);
+            }
+            Mode::Words(n) => {
+                let n = n.to_string();
+                word_text = highlight(word_text);
+
+                if let Some(chosen) = choices.iter_mut().find(|choice| *choice.content == n) {
+                    *chosen = highlight(chosen.clone());
+                }
+            }
+        }
+
+        let choices: Vec<Span> =
+            itertools::Itertools::intersperse(choices.into_iter(), span!(" ")).collect();
+
+        let selection = text![
+            line![quote_text, span!(" "), word_text],
+            span!(" "),
+            Line::from(choices)
+        ];
+
+        selection.centered().render(area, buf);
+    }
 }
 
 impl Widget for &State {
@@ -246,6 +293,8 @@ impl Widget for &State {
                 let line = line![format!("{}/{} {:.0}", cur_index, n_words, wpm)];
 
                 line.render(stats_area, buf);
+
+                State::render_mode_selection(area, buf, &self.mode);
             }
             Screen::EndScreenState { wpm, accuracy } => {
                 let layout = Layout::default()
@@ -270,6 +319,6 @@ impl Widget for &State {
             }
         }
 
-        State::render_bottom_menu(area, buf);
+        State::render_bottom_menu_typing(area, buf);
     }
 }
