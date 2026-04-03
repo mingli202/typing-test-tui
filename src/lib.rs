@@ -1,4 +1,3 @@
-use std::io;
 use std::time::{Duration, Instant};
 
 use ratatui::buffer::Buffer;
@@ -17,11 +16,9 @@ use self::typing_test::TypingTest;
 pub mod data;
 mod typing_test;
 
-pub enum Transition {
+pub enum Action {
     None,
     Switch(State),
-    Push(State),
-    Pop,
     Quit,
 }
 
@@ -115,8 +112,8 @@ impl State {
         }
     }
 
-    fn handle_events(app: &mut App, event: Event) -> Transition {
-        match &mut app.state {
+    fn handle_events(&mut self, event: Event) -> Action {
+        match self {
             State::TypingTestState {
                 typing_test,
                 data,
@@ -131,7 +128,7 @@ impl State {
                             if typing_test.on_type(c) {
                                 let wpm = typing_test.net_wpm();
                                 let accuracy = typing_test.accuracy();
-                                return Transition::Switch(State::EndScreenState {
+                                return Action::Switch(State::EndScreenState {
                                     wpm,
                                     accuracy,
                                     source: data.source.clone(),
@@ -139,35 +136,35 @@ impl State {
                                 });
                             }
 
-                            Transition::None
+                            Action::None
                         }
                         KeyCode::Backspace => {
                             typing_test.on_backspace();
-                            Transition::None
+                            Action::None
                         }
-                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
-                        _ => Transition::None,
+                        KeyCode::Tab => Action::Switch(State::new_typing_test()),
+                        _ => Action::None,
                     }
                 } else {
-                    Transition::None
+                    Action::None
                 }
             }
             State::EndScreenState { .. } => {
                 if let Some(key) = event.as_key_press_event() {
                     return match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => Transition::Quit,
-                        KeyCode::Tab => Transition::Switch(State::new_typing_test()),
-                        _ => Transition::None,
+                        KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
+                        KeyCode::Tab => Action::Switch(State::new_typing_test()),
+                        _ => Action::None,
                     };
                 }
 
-                Transition::None
+                Action::None
             }
         }
     }
 
-    fn on_tick(app: &mut App) {
-        match &mut app.state {
+    fn on_tick(&mut self) {
+        match self {
             Self::TypingTestState {
                 typing_test,
                 stats_last_updated_time,
@@ -248,7 +245,6 @@ impl State {
 
 pub struct App {
     state: State,
-    history: Vec<State>,
     exit: bool,
 }
 
@@ -256,16 +252,15 @@ impl App {
     pub fn new() -> Self {
         App {
             state: State::new_typing_test(),
-            history: vec![],
             exit: false,
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
-            State::on_tick(self);
+            self.state.on_tick();
         }
         Ok(())
     }
@@ -274,7 +269,7 @@ impl App {
         frame.render_widget(&self.state, frame.area());
     }
 
-    fn handle_events(&mut self) -> io::Result<()> {
+    fn handle_events(&mut self) -> color_eyre::Result<()> {
         if event::poll(Duration::from_millis(250))?
             && let Ok(event) = event::read()
         {
@@ -285,24 +280,18 @@ impl App {
                 self.exit = true
             }
 
-            let transition = State::handle_events(self, event);
+            let transition = self.state.handle_events(event);
             self.handle_transition(transition);
         }
 
         Ok(())
     }
 
-    fn handle_transition(&mut self, transition: Transition) {
+    fn handle_transition(&mut self, transition: Action) {
         match transition {
-            Transition::Switch(next_state) => self.state = next_state,
-            Transition::Quit => self.exit = true,
-            Transition::Push(state) => {
-                self.history.push(state);
-            }
-            Transition::Pop => {
-                self.history.pop();
-            }
-            Transition::None => (),
+            Action::Switch(next_state) => self.state = next_state,
+            Action::Quit => self.exit = true,
+            Action::None => (),
         }
     }
 }
