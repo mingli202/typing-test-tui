@@ -41,10 +41,12 @@ impl Config {
     }
 }
 
-pub async fn update_mode(mode: Mode) -> color_eyre::Result<()> {
-    let mut config = Config::load().await;
-    config.mode = mode;
-    update(config).await
+pub fn update_mode(mode: Mode) {
+    tokio::spawn(async move {
+        let mut config = Config::load().await;
+        config.mode = mode;
+        update(config).await
+    });
 }
 
 pub async fn update(config: Config) -> color_eyre::Result<()> {

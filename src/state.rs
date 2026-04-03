@@ -10,6 +10,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 use serde::{Deserialize, Serialize};
 
+use crate::config;
 use crate::data::Data;
 use crate::typing_test::TypingTest;
 
@@ -90,7 +91,9 @@ impl State {
     }
 
     pub fn handle_events(&mut self, event: Event) -> Action {
-        match &mut self.screen {
+        let screen = &mut self.screen;
+
+        match screen {
             Screen::TypingTestState {
                 typing_test,
                 selected_mode,
@@ -116,39 +119,24 @@ impl State {
                         }
                         KeyCode::Left => {
                             *selected_mode = handle_left_arrow_in_selection(selected_mode);
-                            if !matches!(selected_mode, Mode::Words(0))
-                                && *selected_mode != self.mode
-                            {
-                                self.mode = selected_mode.clone();
-                                self.new_typing_test();
-                            }
+                            let mode = selected_mode.clone();
+                            self.update_mode_if_different(mode);
                         }
                         KeyCode::Right => {
                             *selected_mode = handle_right_arrow_in_selection(selected_mode);
-                            if !matches!(selected_mode, Mode::Words(0))
-                                && *selected_mode != self.mode
-                            {
-                                self.mode = selected_mode.clone();
-                                self.new_typing_test();
-                            }
+                            let mode = selected_mode.clone();
+                            self.update_mode_if_different(mode);
                         }
                         KeyCode::Up => {
                             *selected_mode = handle_up_arrow_in_selection(selected_mode);
-                            if !matches!(selected_mode, Mode::Words(0))
-                                && *selected_mode != self.mode
-                            {
-                                self.mode = selected_mode.clone();
-                                self.new_typing_test();
-                            }
+                            let mode = selected_mode.clone();
+                            self.update_mode_if_different(mode);
                         }
                         KeyCode::Down => {
                             *selected_mode = handle_down_arrow_in_selection(selected_mode);
-                            if !matches!(selected_mode, Mode::Words(0))
-                                && *selected_mode != self.mode
-                            {
-                                self.mode = selected_mode.clone();
-                                self.new_typing_test();
-                            }
+
+                            let mode = selected_mode.clone();
+                            self.update_mode_if_different(mode);
                         }
                         _ => {}
                     }
@@ -209,6 +197,17 @@ impl State {
         self.history.clear();
         self.data = self.mode.get_data();
         self.screen = Screen::new_typing_test(&self.data.text, self.mode.clone());
+    }
+
+    /// Updates the typing test mode
+    /// Also write to config file this is the last mode selected
+    fn update_mode_if_different(&mut self, selected_mode: Mode) {
+        if !matches!(selected_mode, Mode::Words(0)) && selected_mode != self.mode {
+            self.mode = selected_mode.clone();
+            self.new_typing_test();
+
+            config::update_mode(self.mode.clone());
+        }
     }
 
     /// Renders the menu of keybinds at the bottom
