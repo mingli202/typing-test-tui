@@ -49,19 +49,6 @@ impl TypingTest {
         }
     }
 
-    pub fn next(&mut self, text: &str) {
-        self.reset();
-        self.words = to_words(text);
-    }
-
-    pub fn reset(&mut self) {
-        self.word_index = 0;
-        self.letter_index = 0;
-        self.time_started = None;
-        self.time_ended = None;
-        self.reset_words();
-    }
-
     /// Processes the typed character. Returns whether the test is done.
     /// - Moves the cursor to the next character.
     /// - If letter is wrong, the current word is marked as errored.
@@ -330,13 +317,6 @@ impl TypingTest {
         .saturating_sub(1)
     }
 
-    /// Resets the state of its words
-    fn reset_words(&mut self) {
-        self.words.iter_mut().for_each(|word| {
-            word.reset();
-        });
-    }
-
     /// Returns text representation and cursorline index
     fn split_into_lines(&self, max_width: usize) -> (Text<'_>, usize) {
         let mut lines: Vec<Line> = vec![];
@@ -411,11 +391,6 @@ impl Widget for &TypingTest {
 
         Paragraph::new(text).scroll((offset, 0)).render(area, buf);
     }
-}
-
-/// Text to words
-fn to_words(text: &str) -> Vec<Word> {
-    text.split(" ").map(Word::new).collect()
 }
 
 #[cfg(test)]
@@ -781,47 +756,5 @@ mod typing_test_test {
             .map(|time_started| time_started + Duration::from_secs(10));
 
         assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
-    }
-
-    #[test]
-    fn reset_words() {
-        let mut test = TypingTest::new("Hello world!");
-
-        "Hel word!~asdf".chars().for_each(|c| {
-            test.on_type(c);
-        });
-
-        test.reset();
-
-        assert_eq!(
-            test.words[0]
-                .letters
-                .iter()
-                .map(|letter| letter.typed_state.clone())
-                .collect::<Vec<TypedState>>(),
-            vec![
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-            ]
-        );
-
-        assert_eq!(
-            test.words[1]
-                .letters
-                .iter()
-                .map(|letter| letter.typed_state.clone())
-                .collect::<Vec<TypedState>>(),
-            vec![
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-                TypedState::NotTyped,
-            ]
-        );
     }
 }
