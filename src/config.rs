@@ -30,19 +30,23 @@ impl Config {
                 }
 
                 match update {
-                    ConfigUpdate::Mode(mode) => {
-                        if let Err(err) = Config::load()
-                            .await
-                            .map(async |config| config.mode(mode).update().await)
-                        {
+                    ConfigUpdate::Mode(mode) => match Config::load().await {
+                        Ok(config) => {
+                            if let Err(err) = config.mode(mode).update().await {
+                                toast_tx
+                                    .send(ToastMessage::error(format!(
+                                        "Could not update config. {}",
+                                        err
+                                    )))
+                                    .expect("could not send message to toast");
+                            }
+                        }
+                        Err(e) => {
                             toast_tx
-                                .send(ToastMessage::error(format!(
-                                    "could not update config {}",
-                                    err
-                                )))
+                                .send(ToastMessage::error(format!("Update error, {}", e)))
                                 .expect("could not send message to toast");
                         }
-                    }
+                    },
                 };
             }
         })
@@ -54,19 +58,26 @@ impl Config {
             match deserialized {
                 Ok(s) => match toml::from_str::<Config>(&s) {
                     Ok(c) => Ok(c),
-                    Err(e) => Err(format!("Config Error, using defaults. {}", e)),
+                    Err(e) => Err(format!("Could not deserialize config file. {}", e)),
                 },
                 Err(e) => {
                     let reason = match e.kind() {
                         io::ErrorKind::NotFound => {
                             if let Err(e) = Config::default().update().await {
-                                format!("Can't create default config file. {}", e);
+                                format!(
+                                    "Could not create default config file at {}. {}",
+                                    path.display(),
+                                    e
+                                )
+                            } else {
+                                format!(
+                                    "Could not find config file at {}, using default.",
+                                    path.display()
+                                )
                             }
-
-                            format!("Can't read config file, using defaults. {}", e.kind())
                         }
                         _ => {
-                            format!("Can't read config file, using defaults. {}", e.kind())
+                            format!("Can't read config file, using defaults. {}", e)
                         }
                     };
 
@@ -74,7 +85,7 @@ impl Config {
                 }
             }
         } else {
-            Err("Could not load config path".to_string())
+            Err("Could not load config path from ~/.typing-test-tui.toml".to_string())
         }
     }
 
