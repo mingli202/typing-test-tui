@@ -1,9 +1,14 @@
 use std::path::PathBuf;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::{fs, io};
 
 use serde::{Deserialize, Serialize};
 
 use crate::state::Mode;
+
+pub enum ConfigUpdate {
+    Mode(Mode),
+}
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Config {
@@ -12,6 +17,18 @@ pub struct Config {
 }
 
 impl Config {
+    pub async fn init(mut rx: UnboundedReceiver<ConfigUpdate>) {
+        tokio::spawn(async move {
+            while let Some(update) = rx.recv().await {
+                match update {
+                    ConfigUpdate::Mode(mode) => {
+                        let _ = update_mode(mode).await;
+                    }
+                };
+            }
+        });
+    }
+
     pub async fn load() -> Config {
         let path = get_config_path();
 
@@ -41,12 +58,10 @@ impl Config {
     }
 }
 
-pub fn update_mode(mode: Mode) {
-    tokio::spawn(async move {
-        let mut config = Config::load().await;
-        config.mode = mode;
-        update(config).await
-    });
+pub async fn update_mode(mode: Mode) -> color_eyre::Result<()> {
+    let mut config = Config::load().await;
+    config.mode = mode;
+    update(config).await
 }
 
 pub async fn update(config: Config) -> color_eyre::Result<()> {

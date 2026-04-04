@@ -78,6 +78,10 @@ impl ModeSelection {
         }
     }
 
+    pub fn to_mode(&self) -> Option<Mode> {
+        self.selected_mode.to_mode()
+    }
+
     pub fn handle_left(&mut self) {
         self.selected_mode = match &self.selected_mode {
             ModeOption::Quote => ModeOption::Words(None),

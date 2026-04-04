@@ -3,21 +3,21 @@ use std::time::{Duration, Instant};
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{Event, KeyCode};
 use ratatui::layout::{Constraint, Direction, Layout, Offset, Rect};
-use ratatui::macros::{line, span, text};
+use ratatui::macros::{line, text};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::Marker;
-use ratatui::text::{Line, Span};
+use ratatui::text::Line;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 use serde::{Deserialize, Serialize};
 
-use crate::config;
 use crate::data::Data;
 use crate::typing_test::TypingTest;
+use crate::typing_test::mode_selection::ModeSelection;
 
 pub enum Action {
     None,
     Quit,
-    // Switch(State),
+    UpdateMode(Mode),
 }
 
 #[derive(Default)]
@@ -54,7 +54,7 @@ pub enum Screen {
         typing_test: TypingTest,
         stats_last_updated_time: Instant,
         stats: TypingStats,
-        selected_mode: Mode,
+        selected_mode: ModeSelection,
     },
     EndScreenState {
         wpm: f64,
@@ -69,7 +69,7 @@ impl Screen {
             typing_test: TypingTest::new(text),
             stats_last_updated_time: Instant::now(),
             stats: TypingStats::default(),
-            selected_mode: mode,
+            selected_mode: ModeSelection::new(mode),
         }
     }
 
@@ -118,25 +118,24 @@ impl State {
                             self.new_typing_test();
                         }
                         KeyCode::Left => {
-                            *selected_mode = handle_left_arrow_in_selection(selected_mode);
-                            let mode = selected_mode.clone();
-                            self.update_mode_if_different(mode);
+                            selected_mode.handle_left();
+                            let mode = selected_mode.to_mode();
+                            return self.update_mode_if_different(mode);
                         }
                         KeyCode::Right => {
-                            *selected_mode = handle_right_arrow_in_selection(selected_mode);
-                            let mode = selected_mode.clone();
-                            self.update_mode_if_different(mode);
+                            selected_mode.handle_right();
+                            let mode = selected_mode.to_mode();
+                            return self.update_mode_if_different(mode);
                         }
                         KeyCode::Up => {
-                            *selected_mode = handle_up_arrow_in_selection(selected_mode);
-                            let mode = selected_mode.clone();
-                            self.update_mode_if_different(mode);
+                            selected_mode.handle_up();
+                            let mode = selected_mode.to_mode();
+                            return self.update_mode_if_different(mode);
                         }
                         KeyCode::Down => {
-                            *selected_mode = handle_down_arrow_in_selection(selected_mode);
-
-                            let mode = selected_mode.clone();
-                            self.update_mode_if_different(mode);
+                            selected_mode.handle_down();
+                            let mode = selected_mode.to_mode();
+                            return self.update_mode_if_different(mode);
                         }
                         _ => {}
                     }
@@ -201,13 +200,17 @@ impl State {
 
     /// Updates the typing test mode
     /// Also write to config file this is the last mode selected
-    fn update_mode_if_different(&mut self, selected_mode: Mode) {
-        if !matches!(selected_mode, Mode::Words(0)) && selected_mode != self.mode {
-            self.mode = selected_mode.clone();
+    fn update_mode_if_different(&mut self, selected_mode: Option<Mode>) -> Action {
+        if let Some(mode) = selected_mode
+            && mode != self.mode
+        {
+            self.mode = mode.clone();
             self.new_typing_test();
 
-            config::update_mode(self.mode.clone());
+            return Action::UpdateMode(mode.clone());
         }
+
+        Action::None
     }
 
     /// Renders the menu of keybinds at the bottom
@@ -281,96 +284,6 @@ impl State {
             .y_axis(y_axis)
             .render(area, buf);
     }
-
-    /// Render mode selection at the top
-    fn render_mode_selection(area: Rect, buf: &mut Buffer, mode: &Mode) {
-        fn highlight(text: Span) -> Span {
-            text.fg(Color::Black).bg(Color::White)
-        }
-
-        let mut quote_text = span!("Quote");
-        let mut word_text = span!("Words");
-
-        let selection = match mode {
-            Mode::Quote => {
-                quote_text = highlight(quote_text);
-                text![line![quote_text, span!(" "), word_text],]
-            }
-            Mode::Words(n) => {
-                let mut choices = vec![span!("10"), span!("25"), span!("50"), span!("100")];
-                let n = n.to_string();
-
-                if let Some(chosen) = choices.iter_mut().find(|choice| *choice.content == n) {
-                    *chosen = highlight(chosen.clone());
-                    word_text = word_text.fg(Color::Black).bg(Color::DarkGray);
-                } else {
-                    word_text = highlight(word_text);
-                }
-                let choices: Vec<Span> =
-                    itertools::Itertools::intersperse(choices.into_iter(), span!(" ")).collect();
-
-                text![
-                    line![quote_text, span!(" "), word_text],
-                    span!(" "),
-                    Line::from(choices)
-                ]
-            }
-        };
-
-        selection.centered().render(area, buf);
-    }
-}
-
-fn handle_left_arrow_in_selection(mode: &Mode) -> Mode {
-    match mode {
-        Mode::Quote => Mode::Words(0),
-        Mode::Words(n) => match n {
-            10 => Mode::Words(100),
-            25 => Mode::Words(10),
-            50 => Mode::Words(25),
-            100 => Mode::Words(50),
-            _ => Mode::Quote,
-        },
-    }
-}
-
-fn handle_right_arrow_in_selection(mode: &Mode) -> Mode {
-    match mode {
-        Mode::Quote => Mode::Words(0),
-        Mode::Words(n) => match n {
-            10 => Mode::Words(25),
-            25 => Mode::Words(50),
-            50 => Mode::Words(100),
-            100 => Mode::Words(10),
-            _ => Mode::Quote,
-        },
-    }
-}
-
-fn handle_up_arrow_in_selection(mode: &Mode) -> Mode {
-    match mode {
-        Mode::Quote => Mode::Quote,
-        Mode::Words(n) => match n {
-            10 => Mode::Words(0),
-            25 => Mode::Words(0),
-            50 => Mode::Words(0),
-            100 => Mode::Words(0),
-            _ => Mode::Words(0),
-        },
-    }
-}
-
-fn handle_down_arrow_in_selection(mode: &Mode) -> Mode {
-    match mode {
-        Mode::Quote => Mode::Quote,
-        Mode::Words(n) => match n {
-            10 => Mode::Words(10),
-            25 => Mode::Words(25),
-            50 => Mode::Words(50),
-            100 => Mode::Words(100),
-            _ => Mode::Words(10),
-        },
-    }
 }
 
 impl Widget for &State {
@@ -398,7 +311,7 @@ impl Widget for &State {
 
                 line.render(stats_area, buf);
 
-                State::render_mode_selection(area, buf, selected_mode);
+                selected_mode.render(area, buf);
                 State::render_bottom_menu_typing(area, buf);
             }
             Screen::EndScreenState { wpm, accuracy } => {
