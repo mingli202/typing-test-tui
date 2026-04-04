@@ -36,56 +36,54 @@ impl Config {
     }
 
     pub async fn load() -> Config {
-        let path = get_config_path();
-
-        let deserialized = fs::read_to_string(&path).await;
-        match deserialized {
-            Ok(s) => match toml::from_str::<Config>(&s) {
-                Ok(c) => c,
+        if let Some(path) = get_config_path() {
+            let deserialized = fs::read_to_string(&path).await;
+            match deserialized {
+                Ok(s) => match toml::from_str::<Config>(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Config Error, using defaults. {}", e);
+                        Config::default()
+                    }
+                },
                 Err(e) => {
-                    println!("Config Error, using defaults. {}", e);
+                    match e.kind() {
+                        io::ErrorKind::NotFound => {
+                            if let Err(e) = Config::default().update().await {
+                                eprintln!("Can't create default config file. {}", e);
+                            };
+                        }
+                        _ => {
+                            eprintln!("Can't read config file, using defaults. {}", e.kind());
+                        }
+                    }
                     Config::default()
                 }
-            },
-            Err(e) => {
-                match e.kind() {
-                    io::ErrorKind::NotFound => {
-                        if let Err(e) = update(Config::default()).await {
-                            println!("Can't create default config file. {}", e);
-                        };
-                    }
-                    _ => {
-                        println!("Can't read config file, using defaults. {}", e.kind());
-                    }
-                }
-                Config::default()
             }
+        } else {
+            eprintln!("Could not load config path");
+            Config::default()
         }
     }
-}
 
-pub async fn update_mode(mode: Mode) -> color_eyre::Result<()> {
-    let mut config = Config::load().await;
-    config.mode = mode;
-    update(config).await
-}
-
-pub async fn update(config: Config) -> color_eyre::Result<()> {
-    let config_file = get_config_path();
-
-    let serialized = toml::to_string(&config)?;
-    fs::write(config_file, serialized).await?;
-
-    Ok(())
-}
-
-fn get_config_path() -> PathBuf {
-    let mut config_path = PathBuf::new();
-
-    if let Some(path) = dirs::home_dir() {
-        config_path.push(path);
+    fn mode(mut self, mode: Mode) -> Config {
+        self.mode = mode;
+        self
     }
-    config_path.push(".typing-test-tui.toml");
 
-    config_path
+    async fn update(self) -> color_eyre::Result<()> {
+        if let Some(file) = get_config_path() {
+            let serialized = toml::to_string(&self)?;
+            fs::write(file, serialized).await?;
+        }
+        Ok(())
+    }
+}
+
+async fn update_mode(mode: Mode) -> color_eyre::Result<()> {
+    Config::load().await.mode(mode).update().await
+}
+
+fn get_config_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|path| path.join(".typing-test-tui.toml"))
 }
