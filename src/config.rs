@@ -30,23 +30,27 @@ impl Config {
                 }
 
                 match update {
-                    ConfigUpdate::Mode(mode) => match Config::load().await {
-                        Ok(config) => {
-                            if let Err(err) = config.mode(mode).update().await {
+                    ConfigUpdate::Mode(mode) => {
+                        let config = match Config::load().await {
+                            Ok(config) => config,
+                            Err(e) => {
                                 toast_tx
-                                    .send(ToastMessage::error(format!(
-                                        "Could not update config. {}",
-                                        err
-                                    )))
+                                    .send(ToastMessage::error(format!("Update error, {}", e)))
                                     .expect("could not send message to toast");
+
+                                Config::default()
                             }
-                        }
-                        Err(e) => {
+                        };
+
+                        if let Err(err) = config.mode(mode).update().await {
                             toast_tx
-                                .send(ToastMessage::error(format!("Update error, {}", e)))
+                                .send(ToastMessage::error(format!(
+                                    "Could not update config. {}",
+                                    err
+                                )))
                                 .expect("could not send message to toast");
                         }
-                    },
+                    }
                 };
             }
         })
