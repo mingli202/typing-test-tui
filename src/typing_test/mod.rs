@@ -11,6 +11,7 @@ use self::letter::{Letter, TypedState};
 use self::word::Word;
 
 mod letter;
+mod mode_selection;
 mod word;
 
 /// Represents a single typing test
