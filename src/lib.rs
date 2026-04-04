@@ -66,14 +66,15 @@ impl App {
         toast_area.x = area.width - toast_area.width;
 
         for message in &self.toast.messages {
-            let paragraph = Paragraph::new(text![message.msg.clone()].fg(Color::White))
-                .black()
-                .wrap(Wrap { trim: true })
-                .block(
-                    Block::bordered()
-                        .border_style(message.level.style())
-                        .border_type(BorderType::Rounded),
-                );
+            let paragraph =
+                Paragraph::new(text![message.msg.clone()].fg(Color::White).bg(Color::Black))
+                    .black()
+                    .wrap(Wrap { trim: true })
+                    .block(
+                        Block::bordered()
+                            .border_style(message.level.style())
+                            .border_type(BorderType::Rounded),
+                    );
 
             // calculate height after wrap
             let line_count = paragraph.line_count(toast_area.width - 2);
