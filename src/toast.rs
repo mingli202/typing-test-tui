@@ -6,12 +6,13 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum ToastLevel {
     #[default]
     Info,
     Warning,
     Error,
+    Success,
 }
 
 impl ToastLevel {
@@ -20,11 +21,12 @@ impl ToastLevel {
             Self::Info => Style::new().white(),
             Self::Warning => Style::new().yellow(),
             Self::Error => Style::new().red(),
+            Self::Success => Style::new().green(),
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ToastMessage {
     pub level: ToastLevel,
     pub msg: String,
@@ -40,6 +42,9 @@ impl ToastMessage {
     pub fn error(msg: String) -> Self {
         ToastMessage::default().level(ToastLevel::Error).msg(msg)
     }
+    pub fn success(msg: String) -> Self {
+        ToastMessage::default().level(ToastLevel::Success).msg(msg)
+    }
 
     pub fn level(mut self, level: ToastLevel) -> Self {
         self.level = level;
@@ -54,12 +59,13 @@ impl ToastMessage {
 
 pub struct Toast {
     pub messages: VecDeque<ToastMessage>,
-    rx: UnboundedReceiver<ToastAction>,
+    pub rx: UnboundedReceiver<ToastAction>,
     tx: UnboundedSender<ToastAction>,
     toast_tx: UnboundedSender<ToastMessage>,
 }
 
-enum ToastAction {
+#[derive(Debug)]
+pub enum ToastAction {
     Push(ToastMessage),
     Pop,
 }

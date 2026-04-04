@@ -1,12 +1,17 @@
 use std::time::Duration;
 
+use color_eyre::owo_colors::Style;
 use ratatui::crossterm::event::{self, KeyCode};
+use ratatui::layout::{Rect, Size};
+use ratatui::macros::text;
+use ratatui::style::{Color, Stylize};
+use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 use tokio::sync::mpsc::UnboundedSender;
 
 use self::config::{Config, ConfigUpdate};
 use self::state::{Action, State};
-use self::toast::{Toast, ToastMessage};
+use self::toast::{Toast, ToastAction, ToastMessage};
 
 pub mod config;
 pub mod data;
@@ -43,12 +48,39 @@ impl App {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
+            self.handle_toast_action();
         }
         Ok(())
     }
 
     fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(&self.state, frame.area());
+        let area = frame.area();
+        frame.render_widget(&self.state, area);
+        self.draw_toast(frame);
+    }
+
+    /// Draw the list of toasts on top of everything
+    fn draw_toast(&self, frame: &mut Frame) {
+        let area = frame.area();
+        let mut toast_area = Rect::new(0, 0, 30, 0);
+
+        toast_area.x = area.width - toast_area.width;
+
+        for message in &self.toast.messages {
+            let paragraph = Paragraph::new(text![message.msg.clone()].fg(Color::White))
+                .black()
+                .wrap(Wrap { trim: true })
+                .block(Block::bordered().border_style(message.level.style()));
+
+            // calculate height after wrap
+            let line_count = paragraph.line_count(toast_area.width);
+            toast_area.height = line_count as u16;
+
+            frame.render_widget(paragraph, toast_area);
+
+            // update y for the enxt area
+            toast_area.y += line_count as u16;
+        }
     }
 
     fn handle_events(&mut self) -> color_eyre::Result<()> {
@@ -78,6 +110,17 @@ impl App {
             Action::None => (),
             Action::UpdateMode(mode) => {
                 let _ = self.config_tx.send(ConfigUpdate::Mode(mode));
+            }
+        }
+    }
+
+    fn handle_toast_action(&mut self) {
+        if let Ok(action) = self.toast.rx.try_recv() {
+            match action {
+                ToastAction::Push(msg) => self.toast.messages.push_front(msg),
+                ToastAction::Pop => {
+                    self.toast.messages.pop_back();
+                }
             }
         }
     }
