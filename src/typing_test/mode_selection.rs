@@ -5,7 +5,7 @@ use ratatui::widgets::Widget;
 
 use crate::state::Mode;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum WordsOption {
     Ten,
     Twentyfive,
@@ -20,6 +20,24 @@ impl WordsOption {
             Self::Twentyfive => 25,
             Self::Fifty => 50,
             Self::Hundred => 100,
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Ten => Self::Twentyfive,
+            Self::Twentyfive => Self::Fifty,
+            Self::Fifty => Self::Hundred,
+            Self::Hundred => Self::Ten,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Ten => Self::Hundred,
+            Self::Twentyfive => Self::Ten,
+            Self::Fifty => Self::Twentyfive,
+            Self::Hundred => Self::Fifty,
         }
     }
 }
@@ -57,6 +75,34 @@ impl ModeSelection {
     pub fn new(initial_mode: Mode) -> Self {
         ModeSelection {
             selected_mode: ModeOption::from_mode(initial_mode),
+        }
+    }
+
+    pub fn handle_left(&mut self) {
+        self.selected_mode = match &self.selected_mode {
+            ModeOption::Quote => ModeOption::Words(None),
+            ModeOption::Words(None) => ModeOption::Quote,
+            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().next())),
+        }
+    }
+
+    pub fn handle_right(&mut self) {
+        self.selected_mode = match &self.selected_mode {
+            ModeOption::Quote => ModeOption::Words(None),
+            ModeOption::Words(None) => ModeOption::Quote,
+            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().prev())),
+        }
+    }
+
+    pub fn handle_up(&mut self) {
+        if let ModeOption::Words(Some(_)) = &self.selected_mode {
+            self.selected_mode = ModeOption::Words(None);
+        }
+    }
+
+    pub fn handle_down(&mut self) {
+        if let ModeOption::Words(None) = &self.selected_mode {
+            self.selected_mode = ModeOption::Words(Some(WordsOption::Ten));
         }
     }
 }
