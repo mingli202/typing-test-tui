@@ -2,9 +2,12 @@ use std::time::Duration;
 
 use ratatui::crossterm::event::{self, KeyCode};
 use ratatui::{DefaultTerminal, Frame};
+use tokio::sync::mpsc::UnboundedSender;
 
+use self::config::{Config, ConfigUpdate};
 use self::state::{Action, State};
 
+pub mod config;
 pub mod data;
 mod state;
 mod typing_test;
@@ -12,13 +15,17 @@ mod typing_test;
 pub struct App {
     state: State,
     exit: bool,
+    config_tx: UnboundedSender<ConfigUpdate>,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub async fn new(tx: UnboundedSender<ConfigUpdate>) -> Self {
+        let config = Config::load().await;
+
         App {
-            state: State::new(),
+            state: State::new(config.mode),
             exit: false,
+            config_tx: tx,
         }
     }
 
@@ -57,15 +64,11 @@ impl App {
 
     fn handle_transition(&mut self, transition: Action) {
         match transition {
-            // Action::Switch(next_state) => self.state = next_state,
             Action::Quit => self.exit = true,
             Action::None => (),
+            Action::UpdateMode(mode) => {
+                let _ = self.config_tx.send(ConfigUpdate::Mode(mode));
+            }
         }
-    }
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self::new()
     }
 }
