@@ -86,7 +86,7 @@ impl ModeSelection {
         self.selected_mode = match &self.selected_mode {
             ModeOption::Quote => ModeOption::Words(None),
             ModeOption::Words(None) => ModeOption::Quote,
-            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().next())),
+            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().prev())),
         }
     }
 
@@ -94,7 +94,7 @@ impl ModeSelection {
         self.selected_mode = match &self.selected_mode {
             ModeOption::Quote => ModeOption::Words(None),
             ModeOption::Words(None) => ModeOption::Quote,
-            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().prev())),
+            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().next())),
         }
     }
 
