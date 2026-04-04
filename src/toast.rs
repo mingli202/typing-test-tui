@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
+use ratatui::style::Style;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -11,6 +12,16 @@ pub enum ToastLevel {
     Info,
     Warning,
     Error,
+}
+
+impl ToastLevel {
+    pub fn style(&self) -> Style {
+        match self {
+            Self::Info => Style::new().white(),
+            Self::Warning => Style::new().yellow(),
+            Self::Error => Style::new().red(),
+        }
+    }
 }
 
 #[derive(Default)]

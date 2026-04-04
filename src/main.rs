@@ -10,10 +10,10 @@ async fn main() -> color_eyre::Result<()> {
     let (config_tx, config_rx) = mpsc::unbounded_channel();
     let (toast_tx, toast_rx) = mpsc::unbounded_channel();
 
-    let toast = Toast::new(toast_tx);
+    let toast = Toast::new(toast_tx.clone());
     let toast_handle = toast.init(toast_rx);
 
-    let handle = Config::init(config_rx, toast_tx.clone());
+    let handle = Config::init(config_rx, toast_tx);
 
     {
         let app = App::new(config_tx, toast).await;
