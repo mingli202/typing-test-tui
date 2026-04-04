@@ -1,11 +1,10 @@
 use std::time::Duration;
 
-use color_eyre::owo_colors::Style;
 use ratatui::crossterm::event::{self, KeyCode};
-use ratatui::layout::{Rect, Size};
+use ratatui::layout::Rect;
 use ratatui::macros::text;
 use ratatui::style::{Color, Stylize};
-use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -70,10 +69,14 @@ impl App {
             let paragraph = Paragraph::new(text![message.msg.clone()].fg(Color::White))
                 .black()
                 .wrap(Wrap { trim: true })
-                .block(Block::bordered().border_style(message.level.style()));
+                .block(
+                    Block::bordered()
+                        .border_style(message.level.style())
+                        .border_type(BorderType::Rounded),
+                );
 
             // calculate height after wrap
-            let line_count = paragraph.line_count(toast_area.width);
+            let line_count = paragraph.line_count(toast_area.width - 2);
             toast_area.height = line_count as u16;
 
             frame.render_widget(paragraph, toast_area);
