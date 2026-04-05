@@ -61,9 +61,9 @@ impl App {
     /// Draw the list of toasts on top of everything
     fn draw_toast(&self, frame: &mut Frame) {
         let area = frame.area();
-        let mut toast_area = Rect::new(0, 0, 30, 0);
+        let mut single_toast_area = Rect::new(0, 0, 30, 0);
 
-        toast_area.x = area.width - toast_area.width;
+        single_toast_area.x = area.width - single_toast_area.width;
 
         for message in &self.toast.messages {
             let paragraph =
@@ -77,13 +77,13 @@ impl App {
                     );
 
             // calculate height after wrap
-            let line_count = paragraph.line_count(toast_area.width - 2);
-            toast_area.height = line_count as u16;
+            let line_count = paragraph.line_count(single_toast_area.width - 2);
+            single_toast_area.height = line_count as u16;
 
-            frame.render_widget(paragraph, toast_area);
+            frame.render_widget(paragraph, single_toast_area);
 
             // update y for the next area
-            toast_area.y += line_count as u16;
+            single_toast_area.y += line_count as u16;
         }
     }
 

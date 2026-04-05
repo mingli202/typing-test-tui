@@ -13,7 +13,7 @@ async fn main() -> color_eyre::Result<()> {
     let toast = Toast::new(toast_tx.clone());
     let toast_handle = toast.init(toast_rx);
 
-    let handle = Config::init(config_rx, toast_tx);
+    let config_handle = Config::init(config_rx, toast_tx);
 
     {
         let app = App::new(config_tx, toast).await;
@@ -21,7 +21,7 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     toast_handle.await?;
-    handle.await?;
+    config_handle.await?;
 
     Ok(())
 }
