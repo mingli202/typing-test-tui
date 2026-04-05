@@ -77,6 +77,7 @@ impl App {
                     );
 
             // calculate height after wrap
+            // -2 because it seems it doesn't handle the border
             let line_count = paragraph.line_count(single_toast_area.width - 2);
             single_toast_area.height = line_count as u16;
 
