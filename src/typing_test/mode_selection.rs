@@ -13,6 +13,14 @@ pub enum WordsOption {
     Hundred,
 }
 
+pub enum WordSelectionOption {
+    /// When selected on "Word" and not any of the word options
+    /// The placeholder keep the last selected value so when pressing down after pressing up, the
+    /// previous selected will be chosen. Better UX.
+    Placeholder(WordsOption),
+    Selected(WordsOption),
+}
+
 impl WordsOption {
     pub fn to_num(&self) -> usize {
         match self {
@@ -44,17 +52,21 @@ impl WordsOption {
 
 pub enum ModeOption {
     Quote,
-    Words(Option<WordsOption>),
+    Words(WordSelectionOption),
 }
 
 impl ModeOption {
     pub fn from_mode(mode: Mode) -> Self {
         match mode {
             Mode::Quote => ModeOption::Quote,
-            Mode::Words(10) => ModeOption::Words(Some(WordsOption::Ten)),
-            Mode::Words(25) => ModeOption::Words(Some(WordsOption::Twentyfive)),
-            Mode::Words(50) => ModeOption::Words(Some(WordsOption::Fifty)),
-            Mode::Words(100) => ModeOption::Words(Some(WordsOption::Hundred)),
+            Mode::Words(10) => ModeOption::Words(WordSelectionOption::Selected(WordsOption::Ten)),
+            Mode::Words(25) => {
+                ModeOption::Words(WordSelectionOption::Selected(WordsOption::Twentyfive))
+            }
+            Mode::Words(50) => ModeOption::Words(WordSelectionOption::Selected(WordsOption::Fifty)),
+            Mode::Words(100) => {
+                ModeOption::Words(WordSelectionOption::Selected(WordsOption::Hundred))
+            }
             _ => ModeOption::Quote,
         }
     }
@@ -62,7 +74,10 @@ impl ModeOption {
     pub fn to_mode(&self) -> Option<Mode> {
         match self {
             Self::Quote => Some(Mode::Quote),
-            Self::Words(w) => w.as_ref().map(|n| Mode::Words(n.to_num())),
+            Self::Words(w) => match w {
+                WordSelectionOption::Placeholder(_) => None,
+                WordSelectionOption::Selected(w) => Some(Mode::Words(w.to_num())),
+            },
         }
     }
 }
@@ -84,29 +99,37 @@ impl ModeSelection {
 
     pub fn handle_left(&mut self) {
         self.selected_mode = match &self.selected_mode {
-            ModeOption::Quote => ModeOption::Words(None),
-            ModeOption::Words(None) => ModeOption::Quote,
-            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().prev())),
+            ModeOption::Quote => {
+                ModeOption::Words(WordSelectionOption::Placeholder(WordsOption::Ten))
+            }
+            ModeOption::Words(WordSelectionOption::Placeholder(_)) => ModeOption::Quote,
+            ModeOption::Words(WordSelectionOption::Selected(w)) => {
+                ModeOption::Words(WordSelectionOption::Selected(w.clone().prev()))
+            }
         }
     }
 
     pub fn handle_right(&mut self) {
         self.selected_mode = match &self.selected_mode {
-            ModeOption::Quote => ModeOption::Words(None),
-            ModeOption::Words(None) => ModeOption::Quote,
-            ModeOption::Words(Some(n)) => ModeOption::Words(Some(n.clone().next())),
+            ModeOption::Quote => {
+                ModeOption::Words(WordSelectionOption::Placeholder(WordsOption::Ten))
+            }
+            ModeOption::Words(WordSelectionOption::Placeholder(_)) => ModeOption::Quote,
+            ModeOption::Words(WordSelectionOption::Selected(w)) => {
+                ModeOption::Words(WordSelectionOption::Selected(w.clone().next()))
+            }
         }
     }
 
     pub fn handle_up(&mut self) {
-        if let ModeOption::Words(Some(_)) = &self.selected_mode {
-            self.selected_mode = ModeOption::Words(None);
+        if let ModeOption::Words(WordSelectionOption::Selected(w)) = &self.selected_mode {
+            self.selected_mode = ModeOption::Words(WordSelectionOption::Placeholder(w.clone()));
         }
     }
 
     pub fn handle_down(&mut self) {
-        if let ModeOption::Words(None) = &self.selected_mode {
-            self.selected_mode = ModeOption::Words(Some(WordsOption::Ten));
+        if let ModeOption::Words(WordSelectionOption::Placeholder(w)) = &self.selected_mode {
+            self.selected_mode = ModeOption::Words(WordSelectionOption::Selected(w.clone()));
         }
     }
 }
@@ -135,7 +158,7 @@ impl Widget for &ModeSelection {
                 .map(|w| span!(w.to_num()))
                 .collect::<Vec<Span>>();
 
-                if let Some(word) = selected_word
+                if let WordSelectionOption::Selected(word) = selected_word
                     && let Some(chosen) = choices
                         .iter_mut()
                         .find(|choice| *choice.content == word.to_num().to_string())
