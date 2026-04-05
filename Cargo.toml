@@ -21,3 +21,6 @@ toml = "1.1.2"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
+
+[profile.dev.package.backtrace]
+opt-level = 3

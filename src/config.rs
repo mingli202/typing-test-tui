@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::path::PathBuf;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
@@ -19,6 +20,8 @@ pub struct Config {
 }
 
 impl Config {
+    /// Initializes listener for config updates
+    /// Sends a error toast message when there's an error
     pub fn init(
         mut rx: UnboundedReceiver<ConfigUpdate>,
         toast_tx: UnboundedSender<ToastMessage>,
@@ -56,6 +59,7 @@ impl Config {
         })
     }
 
+    /// Try to load the config file from the default path (~/.typing-test-tui.toml)
     pub async fn load() -> color_eyre::Result<Config, String> {
         if let Some(path) = get_config_path() {
             let deserialized = fs::read_to_string(&path).await;
@@ -93,20 +97,28 @@ impl Config {
         }
     }
 
+    /// Returns self with the given move set
     fn mode(mut self, mode: Mode) -> Config {
         self.mode = mode;
         self
     }
 
+    /// Consumes self to write to the file
     async fn update(self) -> color_eyre::Result<()> {
         if let Some(file) = get_config_path() {
             let serialized = toml::to_string(&self)?;
             fs::write(file, serialized).await?;
+
+            return Ok(());
         }
-        Ok(())
+
+        Err(color_eyre::Report::msg(
+            "Could not load config path from ~/.typing-test-tui.toml".to_string(),
+        ))
     }
 }
 
+/// Gets the file as a PathBuf
 fn get_config_path() -> Option<PathBuf> {
     dirs::home_dir().map(|path| path.join(".typing-test-tui.toml"))
 }

@@ -82,7 +82,7 @@ impl App {
 
             frame.render_widget(paragraph, toast_area);
 
-            // update y for the enxt area
+            // update y for the next area
             toast_area.y += line_count as u16;
         }
     }
