@@ -36,9 +36,8 @@ impl Config {
                         let config = match Config::load().await {
                             Ok(config) => config,
                             Err(e) => {
-                                toast_tx
-                                    .send(ToastMessage::error(format!("Update error, {}", e)))
-                                    .expect("could not send message to toast");
+                                let _ = toast_tx
+                                    .send(ToastMessage::error(format!("Update error, {}", e)));
 
                                 Config::default()
                             }
