@@ -40,7 +40,9 @@ impl Mode {
         match self {
             Mode::Quote => Data::get_random_quote(),
             Mode::Words(n) => Data::get_n_random_words(*n),
-            Mode::Time(n) => Data::get_n_random_words(*n * 2),
+            // max 80 char per line -> ~16 words
+            // preload 4 lines
+            Mode::Time(_) => Data::get_n_random_words(16 * 4),
         }
     }
 }
