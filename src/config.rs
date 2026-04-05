@@ -1,11 +1,12 @@
 use std::path::PathBuf;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use tokio::{fs, io};
 
 use serde::{Deserialize, Serialize};
 
 use crate::state::Mode;
+use crate::toast::ToastMessage;
 
 pub enum ConfigUpdate {
     Mode(Mode),
@@ -18,7 +19,12 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn init(mut rx: UnboundedReceiver<ConfigUpdate>) -> JoinHandle<()> {
+    /// Initializes listener for config updates
+    /// Sends a error toast message when there's an error
+    pub fn init(
+        mut rx: UnboundedReceiver<ConfigUpdate>,
+        toast_tx: UnboundedSender<ToastMessage>,
+    ) -> JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(mut update) = rx.recv().await {
                 while let Ok(newer) = rx.try_recv() {
@@ -27,8 +33,23 @@ impl Config {
 
                 match update {
                     ConfigUpdate::Mode(mode) => {
-                        if let Err(err) = update_mode(mode).await {
-                            eprintln!("could not update config {}", err);
+                        let config = match Config::load().await {
+                            Ok(config) => config,
+                            Err(e) => {
+                                let _ = toast_tx
+                                    .send(ToastMessage::error(format!("Update error, {}", e)));
+
+                                Config::default()
+                            }
+                        };
+
+                        if let Err(err) = config.mode(mode).update().await {
+                            toast_tx
+                                .send(ToastMessage::error(format!(
+                                    "Could not update config. {}",
+                                    err
+                                )))
+                                .expect("could not send message to toast");
                         }
                     }
                 };
@@ -36,55 +57,66 @@ impl Config {
         })
     }
 
-    pub async fn load() -> Config {
+    /// Try to load the config file from the default path (~/.typing-test-tui.toml)
+    pub async fn load() -> color_eyre::Result<Config, String> {
         if let Some(path) = get_config_path() {
             let deserialized = fs::read_to_string(&path).await;
             match deserialized {
                 Ok(s) => match toml::from_str::<Config>(&s) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("Config Error, using defaults. {}", e);
-                        Config::default()
-                    }
+                    Ok(c) => Ok(c),
+                    Err(e) => Err(format!("Could not deserialize config file. {}", e)),
                 },
                 Err(e) => {
-                    match e.kind() {
+                    let reason = match e.kind() {
                         io::ErrorKind::NotFound => {
                             if let Err(e) = Config::default().update().await {
-                                eprintln!("Can't create default config file. {}", e);
-                            };
+                                format!(
+                                    "Could not create default config file at {}. {}",
+                                    path.display(),
+                                    e
+                                )
+                            } else {
+                                format!(
+                                    "Could not find config file at {}, using default.",
+                                    path.display()
+                                )
+                            }
                         }
                         _ => {
-                            eprintln!("Can't read config file, using defaults. {}", e.kind());
+                            format!("Can't read config file, using defaults. {}", e)
                         }
-                    }
-                    Config::default()
+                    };
+
+                    Err(reason)
                 }
             }
         } else {
-            eprintln!("Could not load config path");
-            Config::default()
+            Err("Could not load config path from ~/.typing-test-tui.toml".to_string())
         }
     }
 
+    /// Returns self with the given move set
     fn mode(mut self, mode: Mode) -> Config {
         self.mode = mode;
         self
     }
 
+    /// Consumes self to write to the file
     async fn update(self) -> color_eyre::Result<()> {
         if let Some(file) = get_config_path() {
             let serialized = toml::to_string(&self)?;
             fs::write(file, serialized).await?;
+
+            return Ok(());
         }
-        Ok(())
+
+        Err(color_eyre::Report::msg(
+            "Could not load config path from ~/.typing-test-tui.toml".to_string(),
+        ))
     }
 }
 
-async fn update_mode(mode: Mode) -> color_eyre::Result<()> {
-    Config::load().await.mode(mode).update().await
-}
-
+/// Gets the file as a PathBuf
 fn get_config_path() -> Option<PathBuf> {
     dirs::home_dir().map(|path| path.join(".typing-test-tui.toml"))
 }
