@@ -2,8 +2,17 @@ use std::fmt::Display;
 
 #[derive(Debug)]
 pub struct Selection<T: Display> {
-    items: Vec<SelectionItem<T>>,
+    items: Vec<T>,
     selected_id: usize,
+    tree: Vec<Node>,
+}
+
+#[derive(Debug)]
+struct Node {
+    id: usize,
+    parent_id: Option<usize>,
+    last_selected_child_id: Option<usize>,
+    children: Vec<Node>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -55,32 +64,61 @@ impl<T: Display> SelectionItem<T> {
 impl<T: Display> Selection<T> {
     /// new Selection
     /// Will set the ids the item regardless they have been set or not
-    pub fn new(mut items: Vec<SelectionItem<T>>) -> Self {
-        let mut id = 0;
+    pub fn new(items: Vec<SelectionItem<T>>) -> Self {
+        let mut raw_items = vec![];
 
-        for item in &mut items {
-            id = Self::set_id(item, id, None);
-        }
+        let nodes = items
+            .into_iter()
+            .map(|item| Self::flatten(item, &mut raw_items, None))
+            .collect();
 
         Selection {
-            items,
+            items: raw_items,
             selected_id: 0,
+            tree: nodes,
         }
     }
 
-    /// Traverse the tree to set the id of every item
-    /// The id is the order the given is discovered in a depth first search
-    fn set_id(item: &mut SelectionItem<T>, id: usize, parent_id: Option<usize>) -> usize {
-        item.parent_id = parent_id;
-        item.id = id;
+    /// Flatten given tree of item into a list of item, where each holds a reference id to its
+    /// parent. Push each visitied item to items and return the item as a node in the tree
+    fn flatten(item: SelectionItem<T>, items: &mut Vec<T>, parent_id: Option<usize>) -> Node {
+        let id = items.len();
 
-        let mut last_id = id + 1;
+        items.push(item.item);
 
-        for child in item.children.iter_mut() {
-            last_id = Self::set_id(child, last_id, Some(id));
+        let children = item
+            .children
+            .into_iter()
+            .map(|child| Self::flatten(child, items, Some(id)))
+            .collect();
+
+        let node = Node {
+            id,
+            parent_id,
+            last_selected_child_id: None,
+            children,
+        };
+
+        node
+    }
+
+    /// Finds the first item equal to the given item
+    pub fn find(&self, item: T) -> Option<(usize, &T)>
+    where
+        T: PartialEq,
+    {
+        self.find_with(|_, tree_item| *tree_item == item)
+    }
+
+    /// Finds the first item satisfying the predicate
+    pub fn find_with<F: Fn(usize, &T) -> bool>(&self, p: F) -> Option<(usize, &T)> {
+        for (i, item) in self.items.iter().enumerate() {
+            if p(i, item) {
+                return Some((i, item));
+            }
         }
 
-        last_id
+        None
     }
 
     /// Traverse the tree to select an item
@@ -90,27 +128,36 @@ impl<T: Display> Selection<T> {
     where
         T: PartialEq,
     {
-        self.select_with(|tree_item, _| *tree_item == item);
+        self.select_with(|_, tree_item| *tree_item == item);
     }
 
     /// Traverse the tree to select the first item satisfying the predicate
     /// Predicate takes the item as argument and it's id in the tree
     /// If nothing matches, selected item is unchanged
-    pub fn select_with<F: Fn(&T, usize) -> bool>(&mut self, p: F) {
-        let mut found_item = None;
-
-        for item in &self.items {
-            found_item = item.find(&p);
-
-            if found_item.is_some() {
-                break;
-            }
-        }
-
-        if let Some(item) = found_item {
-            self.selected_id = item.id;
+    pub fn select_with<F: Fn(usize, &T) -> bool>(&mut self, p: F) {
+        if let Some((id, _)) = self.find_with(p) {
+            self.selected_id = id;
         }
     }
+
+    /// Move the selection up a level.
+    /// It will select the parent of the current selected id.
+    /// If there are no parent, the selected item is unchanged
+    pub fn up(&mut self) {}
+
+    /// Move the selection down a level.
+    /// It will select the previously selected child if there is.
+    /// Otherwise, the first child will be selected.
+    /// If there are no child, no change in the selected item
+    pub fn down(&mut self) {}
+
+    /// Select the item left of the selected item.
+    /// Will look back to the end of the children.
+    pub fn left(&mut self) {}
+
+    /// Select the item right of the selected item.
+    /// Will look back to the start of the children.
+    pub fn right(&mut self) {}
 }
 
 #[cfg(test)]
@@ -207,7 +254,7 @@ mod selection_test {
         selection.select(5);
         assert_eq!(selection.selected_id, 4);
 
-        selection.select_with(|item, _| *item == 4);
+        selection.select_with(|_, item| *item == 4);
         assert_eq!(selection.selected_id, 7);
 
         selection.select(-1);
