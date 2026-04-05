@@ -24,6 +24,7 @@ pub enum Action {
 pub struct TypingStats {
     wpm: f64,
     current_index: usize,
+    elapsed: Duration,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -178,12 +179,21 @@ impl State {
                     if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
                         stats.wpm = wpm;
                         stats.current_index = typing_test.word_index;
+                        stats.elapsed = elapsed.unwrap_or(Duration::from_secs(0));
 
                         *stats_last_updated_time = Instant::now();
                     }
 
                     if let Some(elapsed) = elapsed {
                         self.history.push((elapsed.as_secs_f64(), wpm));
+
+                        if let Mode::Time(t) = self.mode
+                            && elapsed > Duration::from_secs(t as u64)
+                        {
+                            let wpm = typing_test.net_wpm();
+                            let accuracy = typing_test.accuracy();
+                            self.screen = Screen::new_end_screen(wpm, accuracy)
+                        }
                     }
                 }
             }
@@ -305,11 +315,21 @@ impl Widget for &State {
             } => {
                 typing_test.render(typing_test_area, buf);
 
-                let wpm = stats.wpm;
-                let cur_index = stats.current_index;
-                let n_words = typing_test.n_words();
                 let stats_area = typing_test_area.offset(Offset { x: 0, y: -2 });
-                let line = line![format!("{}/{} {:.0}", cur_index, n_words, wpm)];
+                let wpm = stats.wpm;
+
+                let line = match self.mode {
+                    Mode::Time(t) => {
+                        let elapsed = stats.elapsed;
+                        let remaining = u64::max(0, t as u64 - elapsed.as_secs());
+                        line![format!("{} {:.0}", remaining, wpm)]
+                    }
+                    _ => {
+                        let cur_index = stats.current_index;
+                        let n_words = typing_test.n_words();
+                        line![format!("{}/{} {:.0}", cur_index, n_words, wpm)]
+                    }
+                };
 
                 line.render(stats_area, buf);
 
