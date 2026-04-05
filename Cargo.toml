@@ -20,6 +20,8 @@ tokio = { version = "1.50.0", features = [
 	"fs",
 	"macros",
 	"rt-multi-thread",
+	"time",
+	"sync",
 ] }
 toml = "1.1.2"
 
