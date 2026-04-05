@@ -13,7 +13,7 @@ pub struct Args {}
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    let args = Args::parse();
+    let _ = Args::parse();
 
     let (config_tx, config_rx) = mpsc::unbounded_channel();
     let (toast_tx, toast_rx) = mpsc::unbounded_channel();
