@@ -256,7 +256,7 @@ impl TypingTest {
         100 * total_correct_letters / total_letters
     }
 
-    /// The amount of words ot type
+    /// The amount of words to type
     pub fn n_words(&self) -> usize {
         self.words.len()
     }
