@@ -248,8 +248,9 @@ impl TypingTest {
 
     /// Get total correct letters
     fn total_correct_letters_typed(&self) -> usize {
-        (self.words[..self.word_index]
+        self.words
             .iter()
+            .take(self.word_index)
             .map(|word| {
                 word.letters
                     .iter()
@@ -257,18 +258,27 @@ impl TypingTest {
                     .count()
             })
             .sum::<usize>()
-            + self.words.len())
-        .saturating_sub(1)
+            + self.word_index
+            + self.words.get(self.word_index).map_or(0, |word| {
+                word.letters
+                    .iter()
+                    .filter(|letter| !letter.is_error())
+                    .count()
+            })
     }
 
     /// The total amount of characters of this test.
     fn total_letters(&self) -> usize {
-        (self.words[..self.word_index]
+        self.words
             .iter()
+            .take(self.word_index)
             .map(|word| word.actual_len())
             .sum::<usize>()
-            + self.words.len())
-        .saturating_sub(1)
+            + self.word_index
+            + self
+                .words
+                .get(self.word_index)
+                .map_or(0, |word| usize::min(word.actual_len(), self.letter_index))
     }
 
     /// Returns text representation and cursorline index
