@@ -50,8 +50,8 @@ impl<T> SelectionItem<T> {
     }
 
     /// Returns the first item satisfying the predicate p.
-    /// path is path accumulator
-    /// p takes the item
+    /// path is an accumulator for where it is in the tree
+    /// p takes an immutable reference to self.item
     fn find_with<F: Fn(&T) -> bool>(&self, p: &F) -> Option<Vec<usize>> {
         if let Some(item) = &self.item
             && p(item)
