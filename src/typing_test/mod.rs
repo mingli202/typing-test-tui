@@ -86,23 +86,30 @@ impl TypingTest {
 
         if is_done {
             self.time_ended = Some(Instant::now());
+
+            // Move to the end of the words so that n_wrongs counts it
+            self.word_index = self.words.len();
         }
 
         is_done
     }
 
     /// Gets the numbers of wrong words up to the current word the user is typing
+    /// Do not include the word that's being typed
     pub fn n_wrongs(&self) -> usize {
-        self.words[..self.word_index]
+        self.words
             .iter()
+            .take(self.word_index)
             .filter(|word| word.is_error())
             .count()
     }
 
     /// Total number of letters typed excluding extras up to the currently typed word
+    /// Include the word that's being typed
     pub fn letters_typed(&self) -> usize {
-        self.words[..=self.word_index]
+        self.words
             .iter()
+            .take(self.word_index + 1)
             .map(|word| word.n_letters_typed())
             .sum::<usize>()
             + self.word_index // for spaces
