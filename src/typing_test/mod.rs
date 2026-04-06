@@ -91,17 +91,9 @@ impl TypingTest {
         is_done
     }
 
-    /// Gets the numbers of wrong words
-    pub fn n_wrongs(&self) -> usize {
-        self.words[..=self.word_index]
-            .iter()
-            .filter(|word| word.is_error())
-            .count()
-    }
-
     /// Gets the numbers of wrong words up to the current word the user is typing
-    pub fn n_current_wrongs(&self) -> usize {
-        self.words[..=self.word_index]
+    pub fn n_wrongs(&self) -> usize {
+        self.words[..self.word_index]
             .iter()
             .filter(|word| word.is_error())
             .count()
@@ -130,7 +122,7 @@ impl TypingTest {
         let wpm = match self.elapsed_since_start_sec() {
             Some(elapsed) if elapsed > Duration::from_secs(1) => {
                 let current_typed_words =
-                    self.letters_typed() as f64 / 5.0 - self.n_current_wrongs() as f64;
+                    self.letters_typed() as f64 / 5.0 - self.n_wrongs() as f64;
                 60.0 * current_typed_words / elapsed.as_secs_f64()
             }
             _ => 0.0,
