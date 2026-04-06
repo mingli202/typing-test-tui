@@ -5,6 +5,7 @@ use typing_test_tui::toast::Toast;
 
 use clap::Parser;
 
+// TODO: --offline mode uses my own data
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub struct Args {}
