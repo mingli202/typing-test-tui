@@ -31,7 +31,7 @@ impl App {
         let config = match Config::load().await {
             Ok(config) => config,
             Err(e) => {
-                let _ = toast.send(ToastMessage::error(e));
+                let _ = toast.send(ToastMessage::warning(e));
                 Config::default()
             }
         };
