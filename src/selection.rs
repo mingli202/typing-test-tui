@@ -3,7 +3,7 @@ use std::fmt::Display;
 use ratatui::macros::{span, text};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::widgets::Paragraph;
 
 #[derive(Debug)]
 pub struct Selection<T> {
@@ -197,6 +197,7 @@ impl<T> Selection<T> {
         }
     }
 
+    /// Return the selection as a renderable paragraph
     pub fn get_widget(&self) -> Paragraph<'_>
     where
         T: Display,
@@ -249,6 +250,7 @@ impl<T> Selection<T> {
         Some(parent)
     }
 
+    /// Gets a renderable line of selection item
     fn get_children_row(
         children: &[SelectionItem<T>],
         child_index: Option<usize>,
