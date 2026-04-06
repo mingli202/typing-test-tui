@@ -124,22 +124,22 @@ impl State {
                         }
                         KeyCode::Left => {
                             selected_mode.handle_left();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Right => {
                             selected_mode.handle_right();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Up => {
                             selected_mode.handle_up();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Down => {
                             selected_mode.handle_down();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         _ => {}

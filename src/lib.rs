@@ -14,6 +14,7 @@ use self::toast::{Toast, ToastMessage};
 
 pub mod config;
 pub mod data;
+mod selection;
 mod state;
 pub mod toast;
 mod typing_test;
