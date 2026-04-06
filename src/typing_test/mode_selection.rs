@@ -80,7 +80,7 @@ impl ModeSelection {
     pub fn selected_mode(&self) -> Option<Mode> {
         self.selection
             .get_selected_item()
-            .and_then(|item| item.item.as_ref().and_then(|o| o.to_mode()))
+            .and_then(|item| item.to_mode())
     }
 
     pub fn handle_left(&mut self) {

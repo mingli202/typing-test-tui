@@ -5,17 +5,21 @@ use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+/// A menu where menu can have their own menu items.
+/// This struct handles the selection of such menu items.
+/// It includes selecting up/down/left/right
 #[derive(Debug)]
 pub struct Selection<T> {
-    pub root: SelectionItem<T>,
+    root: SelectionItem<T>,
     selected_path: Vec<usize>,
 }
 
+/// A singular selection item
 #[derive(Debug, PartialEq)]
 pub struct SelectionItem<T> {
     /// Option because root node has technically nothing
-    pub item: Option<T>,
-    pub children: Vec<SelectionItem<T>>,
+    item: Option<T>,
+    children: Vec<SelectionItem<T>>,
     last_selected_child_id: Option<usize>,
 }
 
@@ -78,8 +82,13 @@ impl<T> Selection<T> {
         }
     }
 
-    /// Gets immutable reference to currently selected item
-    pub fn get_selected_item(&self) -> Option<&SelectionItem<T>> {
+    pub fn get_selected_item(&self) -> Option<&T> {
+        self.get_selected_selection_item()
+            .and_then(|item| item.item.as_ref())
+    }
+
+    /// Gets immutable reference to currently selected selection item
+    fn get_selected_selection_item(&self) -> Option<&SelectionItem<T>> {
         let mut selected = &self.root;
 
         for i in &self.selected_path {
@@ -94,8 +103,8 @@ impl<T> Selection<T> {
         Some(selected)
     }
 
-    /// Gets mutable reference to currently selected item
-    pub fn get_selected_item_mut(&mut self) -> Option<&mut SelectionItem<T>> {
+    /// Gets mutable reference to currently selected selection item
+    fn get_selected_selection_item_mut(&mut self) -> Option<&mut SelectionItem<T>> {
         let mut selected = &mut self.root;
 
         for i in &self.selected_path {
@@ -117,7 +126,7 @@ impl<T> Selection<T> {
         if self.selected_path.len() > 1 {
             let prev_index = self.selected_path.pop().unwrap();
 
-            if let Some(selected) = self.get_selected_item_mut() {
+            if let Some(selected) = self.get_selected_selection_item_mut() {
                 selected.last_selected_child_id = Some(prev_index);
             }
         }
@@ -128,7 +137,7 @@ impl<T> Selection<T> {
     /// Otherwise, the first child will be selected.
     /// If there are no child, no change in the selected item
     pub fn down(&mut self) {
-        if let Some(selected) = self.get_selected_item() {
+        if let Some(selected) = self.get_selected_selection_item() {
             match selected.last_selected_child_id {
                 Some(last_selected_child_id) => self.selected_path.push(last_selected_child_id),
                 None if !selected.children.is_empty() => self.selected_path.push(0),
