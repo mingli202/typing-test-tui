@@ -307,7 +307,7 @@ mod selection_test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    pub fn selection() {
+    fn selection() {
         let items = vec![
             SelectionItem::new(0).children(vec![
                 SelectionItem::new(0),
