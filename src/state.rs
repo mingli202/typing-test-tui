@@ -40,9 +40,13 @@ impl Mode {
         match self {
             Mode::Quote => Data::get_random_quote(),
             Mode::Words(n) => Data::get_n_random_words(*n),
+            // TODO: new lines as the user reaches the end
             // max 80 char per line -> ~16 words
             // preload 4 lines
-            Mode::Time(_) => Data::get_n_random_words(16 * 4),
+            //
+            // NOTE: require refactor of current architecture or it will become messy
+            // for now, just assume the user won't type more than 240 wpm
+            Mode::Time(t) => Data::get_n_random_words(t * 4),
         }
     }
 }
