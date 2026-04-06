@@ -38,6 +38,26 @@ impl<T: Display> SelectionItem<T> {
         self.children = children;
         self
     }
+
+    /// Returns the first item satisfying the predicate p.
+    /// path is path accumulator
+    /// p takes the item
+    fn find_with<F: Fn(&T) -> bool>(&self, p: &F) -> Option<Vec<usize>> {
+        if let Some(item) = &self.item
+            && p(item)
+        {
+            return Some(vec![]);
+        }
+
+        for (i, child) in self.children.iter().enumerate() {
+            if let Some(mut path) = child.find_with(p) {
+                path.push(i);
+                return Some(path);
+            }
+        }
+
+        None
+    }
 }
 
 impl<T: Display> Selection<T> {
@@ -131,6 +151,26 @@ impl<T: Display> Selection<T> {
         }
     }
 
+    /// Traverse the tree to select an item
+    /// Will select the first item equal to the given item
+    /// If you need a prediate instead, see select_with
+    pub fn select(&mut self, item: T)
+    where
+        T: PartialEq,
+    {
+        self.select_with(|tree_item| *tree_item == item);
+    }
+
+    /// Traverse the tree to select the first item satisfying the predicate
+    /// Predicate takes the item as argument and it's id in the tree
+    /// If nothing matches, selected item is unchanged
+    pub fn select_with<F: Fn(&T) -> bool>(&mut self, p: F) {
+        if let Some(mut selected_path) = self.root.find_with(&p) {
+            selected_path.reverse();
+            self.selected_path = selected_path;
+        }
+    }
+
     /// Gets the parent of the currently selected item
     fn parent_of_selected(&self) -> Option<&SelectionItem<T>> {
         let len = self.selected_path.len();
@@ -158,4 +198,34 @@ impl<T: Display> Selection<T> {
 mod selection_test {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    pub fn selection() {
+        let items = vec![
+            SelectionItem::new(0).children(vec![
+                SelectionItem::new(0),
+                SelectionItem::new(1).children(vec![SelectionItem::new(1), SelectionItem::new(5)]),
+                SelectionItem::new(2),
+            ]),
+            SelectionItem::new(1),
+            SelectionItem::new(4),
+        ];
+
+        let mut selection = Selection::new(items);
+
+        selection.select(1);
+        assert_eq!(selection.selected_path, vec![0, 1]);
+
+        selection.select(5);
+        assert_eq!(selection.selected_path, vec![0, 1, 1]);
+
+        selection.select_with(|item| *item == 4);
+        assert_eq!(selection.selected_path, vec![2]);
+
+        selection.select(-1);
+        assert_eq!(selection.selected_path, vec![2]);
+    }
+
+    #[test]
+    fn left() {}
 }
