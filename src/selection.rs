@@ -88,38 +88,6 @@ impl<T> Selection<T> {
             .and_then(|item| item.item.as_ref())
     }
 
-    /// Gets immutable reference to currently selected selection item
-    fn get_selected_selection_item(&self) -> Option<&SelectionItem<T>> {
-        let mut selected = &self.root;
-
-        for i in &self.selected_path {
-            match selected.children.get(*i) {
-                Some(child) => selected = child,
-                None => {
-                    return None;
-                }
-            }
-        }
-
-        Some(selected)
-    }
-
-    /// Gets mutable reference to currently selected selection item
-    fn get_selected_selection_item_mut(&mut self) -> Option<&mut SelectionItem<T>> {
-        let mut selected = &mut self.root;
-
-        for i in &self.selected_path {
-            match selected.children.get_mut(*i) {
-                Some(child) => selected = child,
-                None => {
-                    return None;
-                }
-            }
-        }
-
-        Some(selected)
-    }
-
     /// Move the selection up a level.
     /// It will select the parent of the current selected id.
     /// If there are no parent, the selected item is unchanged
@@ -236,6 +204,38 @@ impl<T> Selection<T> {
         t.push_line(line);
 
         Paragraph::new(t)
+    }
+
+    /// Gets immutable reference to currently selected selection item
+    fn get_selected_selection_item(&self) -> Option<&SelectionItem<T>> {
+        let mut selected = &self.root;
+
+        for i in &self.selected_path {
+            match selected.children.get(*i) {
+                Some(child) => selected = child,
+                None => {
+                    return None;
+                }
+            }
+        }
+
+        Some(selected)
+    }
+
+    /// Gets mutable reference to currently selected selection item
+    fn get_selected_selection_item_mut(&mut self) -> Option<&mut SelectionItem<T>> {
+        let mut selected = &mut self.root;
+
+        for i in &self.selected_path {
+            match selected.children.get_mut(*i) {
+                Some(child) => selected = child,
+                None => {
+                    return None;
+                }
+            }
+        }
+
+        Some(selected)
     }
 
     /// Gets the parent of the currently selected item
