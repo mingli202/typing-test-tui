@@ -1,5 +1,10 @@
 use std::fmt::Display;
 
+use ratatui::macros::{span, text};
+use ratatui::style::{Color, Stylize};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Paragraph, Widget};
+
 #[derive(Debug)]
 pub struct Selection<T> {
     pub root: SelectionItem<T>,
@@ -61,7 +66,7 @@ impl<T> SelectionItem<T> {
     }
 }
 
-impl<T: Display> Selection<T> {
+impl<T> Selection<T> {
     /// new Selection
     /// Will set the ids the item regardless they have been set or not
     pub fn new(items: Vec<SelectionItem<T>>) -> Self {
@@ -192,6 +197,36 @@ impl<T: Display> Selection<T> {
         }
     }
 
+    pub fn get_widget(&self) -> Paragraph<'_>
+    where
+        T: Display,
+    {
+        let mut root = &self.root;
+        let mut t = text![];
+
+        let selected_path_len = self.selected_path.len();
+
+        for (path_index, child_index) in self.selected_path.iter().enumerate() {
+            let line = Self::get_children_row(
+                &root.children,
+                Some(*child_index),
+                Some(path_index),
+                selected_path_len,
+            );
+
+            t.push_line(line);
+
+            if let Some(child) = root.children.get(*child_index) {
+                root = child;
+            }
+        }
+
+        let line = Self::get_children_row(&root.children, None, None, selected_path_len);
+        t.push_line(line);
+
+        Paragraph::new(t)
+    }
+
     /// Gets the parent of the currently selected item
     fn parent_of_selected(&self) -> Option<&SelectionItem<T>> {
         let len = self.selected_path.len();
@@ -213,6 +248,45 @@ impl<T: Display> Selection<T> {
 
         Some(parent)
     }
+
+    fn get_children_row(
+        children: &[SelectionItem<T>],
+        child_index: Option<usize>,
+        path_index: Option<usize>,
+        selected_path_len: usize,
+    ) -> Line<'_>
+    where
+        T: Display,
+    {
+        let row = children.iter().enumerate().map(|(i, selection_item)| {
+            selection_item.item.as_ref().map_or(span!(""), |item| {
+                let span = Span::from(item.to_string())
+                    .fg(Color::White)
+                    .bg(Color::Black);
+
+                if child_index == Some(i) {
+                    if path_index == Some(selected_path_len - 1) {
+                        highlight_white(span)
+                    } else {
+                        highlight_gray(span)
+                    }
+                } else {
+                    span
+                }
+            })
+        });
+
+        let row = itertools::intersperse(row, span!(" ")).collect::<Vec<Span>>();
+        Line::from(row)
+    }
+}
+
+fn highlight_white(text: Span) -> Span {
+    text.fg(Color::Black).bg(Color::White)
+}
+
+fn highlight_gray(text: Span) -> Span {
+    text.fg(Color::Black).bg(Color::DarkGray)
 }
 
 #[cfg(test)]
