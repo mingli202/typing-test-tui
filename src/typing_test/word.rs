@@ -7,14 +7,14 @@ use super::letter::Letter;
 /// Represent a single word of the text to type
 #[derive(Debug)]
 pub struct Word {
-    /// The underlying word. Kept so we can easily render the word
-    word: String,
-
     /// Its letters
     pub(super) letters: Vec<Letter>,
 
     /// Which letter the user last typed
     pub(super) last_typed_letter_index: usize,
+
+    /// the actual length of the word
+    actual_len: usize,
 }
 
 impl Word {
@@ -22,7 +22,7 @@ impl Word {
     pub fn new(text: &str) -> Word {
         Word {
             letters: text.chars().map(Letter::new).collect(),
-            word: text.to_string(),
+            actual_len: text.len(),
             last_typed_letter_index: 0,
         }
     }
@@ -51,7 +51,7 @@ impl Word {
 
     /// Gets the actual length of the word to type
     pub fn actual_len(&self) -> usize {
-        self.word.len()
+        self.actual_len
     }
 
     /// Gets the number of letter typed excluding extras
