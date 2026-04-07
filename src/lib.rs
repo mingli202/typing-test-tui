@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use ratatui::crossterm::event::{self, KeyCode};
+use ratatui::crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::macros::text;
 use ratatui::style::{Color, Stylize};
@@ -93,12 +93,23 @@ impl App {
         if event::poll(Duration::from_millis(250))?
             && let Ok(event) = event::read()
         {
-            if let Some(event::KeyEvent {
-                code: KeyCode::Esc, ..
-            }) = event.as_key_press_event()
+            if let Some(
+                event::KeyEvent {
+                    code: KeyCode::Esc, ..
+                }
+                | event::KeyEvent {
+                    code: KeyCode::Char('c'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                },
+            ) = event.as_key_press_event()
             {
                 self.exit = true
             }
+
+            let _ = self
+                .toast
+                .send(ToastMessage::info(format!("hello world {:?}", event)));
 
             let transition = self.state.handle_events(event);
             self.handle_transition(transition);
