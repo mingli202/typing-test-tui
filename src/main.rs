@@ -1,7 +1,6 @@
 use std::io::{self, Stdout};
 
 use crossterm::cursor;
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::prelude::CrosstermBackend;
