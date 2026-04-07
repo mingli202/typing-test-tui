@@ -107,10 +107,6 @@ impl App {
                 self.exit = true
             }
 
-            let _ = self
-                .toast
-                .send(ToastMessage::info(format!("hello world {:?}", event)));
-
             let transition = self.state.handle_events(event);
             self.handle_transition(transition);
         }
