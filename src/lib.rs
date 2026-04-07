@@ -12,10 +12,12 @@ use tokio::select;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::time::interval;
 
+use self::action::Action;
 use self::config::{Config, ConfigUpdate};
-use self::state::{Action, State};
+use self::state::State;
 use self::toast::{Toast, ToastMessage};
 
+pub mod action;
 pub mod config;
 pub mod data;
 mod selection;
@@ -65,16 +67,16 @@ impl App {
         init_event_loop(event_tx, fps, tps);
 
         while !self.exit {
-            tokio::select! {
+            let action = tokio::select! {
                 Some(custom_event) = event_rx.recv() => {
                     match custom_event {
-                        CustomEvent::Quit => self.exit = false,
-                        CustomEvent::Tick => {
-                            let transition = self.state.on_tick();
-                            self.handle_transition(transition);
-                        }
+                        CustomEvent::Quit => {self.exit = false;
+                            Action::None
+                        },
+                        CustomEvent::Tick => self.state.on_tick(),
                         CustomEvent::Render => {
                             terminal.draw(|frame| self.draw(frame))?;
+                            Action::None
                         }
                         CustomEvent::Key(key) => self.handle_key(key)?,
                     }
@@ -82,8 +84,11 @@ impl App {
                 }
                 Some(toast_action) = self.toast.action_rx.recv() => {
                     self.toast.handle_action(toast_action);
+                    Action::None
                 }
-            }
+            };
+
+            self.handle_action(action);
         }
 
         Ok(())
@@ -125,7 +130,7 @@ impl App {
         }
     }
 
-    fn handle_key(&mut self, key: KeyEvent) -> color_eyre::Result<()> {
+    fn handle_key(&mut self, key: KeyEvent) -> color_eyre::Result<Action> {
         if let KeyEvent {
             code: KeyCode::Esc, ..
         }
@@ -138,13 +143,11 @@ impl App {
             self.exit = true
         }
 
-        let transition = self.state.handle_key(key);
-        self.handle_transition(transition);
-
-        Ok(())
+        let action = self.state.handle_key(key);
+        Ok(action)
     }
 
-    fn handle_transition(&mut self, transition: Action) {
+    fn handle_action(&mut self, transition: Action) {
         match transition {
             Action::Quit => self.exit = true,
             Action::None => (),

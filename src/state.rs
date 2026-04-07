@@ -11,15 +11,10 @@ use ratatui::text::Line;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 use serde::{Deserialize, Serialize};
 
+use crate::action::Action;
 use crate::data::Data;
 use crate::typing_test::TypingTest;
 use crate::typing_test::mode_selection::ModeSelection;
-
-pub enum Action {
-    None,
-    Quit,
-    UpdateMode(Mode),
-}
 
 #[derive(Default)]
 pub struct TypingStats {
