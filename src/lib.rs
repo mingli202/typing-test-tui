@@ -48,9 +48,14 @@ impl App {
         }
     }
 
-    pub async fn run(mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
+    pub async fn run(
+        mut self,
+        terminal: &mut DefaultTerminal,
+        fps: usize,
+        tps: usize,
+    ) -> color_eyre::Result<()> {
         let (event_tx, mut event_rx) = mpsc::unbounded_channel();
-        init_event_loop(event_tx);
+        init_event_loop(event_tx, fps, tps);
 
         while !self.exit
             && let Some(custom_event) = event_rx.recv().await
@@ -152,13 +157,13 @@ pub enum CustomEvent {
     Mouse(MouseEvent),
 }
 
-fn init_event_loop(event_tx: UnboundedSender<CustomEvent>) {
+fn init_event_loop(event_tx: UnboundedSender<CustomEvent>, fps: usize, tps: usize) {
     tokio::spawn(async move {
-        let tick_duration_millis = 250;
-        let render_duration_millis = 1000 / 60;
+        let render_duration_secs = 1.0 / fps as f64;
+        let tick_duration_secs = 1.0 / tps as f64;
 
-        let mut tick_interval = interval(Duration::from_millis(tick_duration_millis));
-        let mut render_interval = interval(Duration::from_millis(render_duration_millis));
+        let mut tick_interval = interval(Duration::from_secs_f64(tick_duration_secs));
+        let mut render_interval = interval(Duration::from_secs_f64(render_duration_secs));
 
         let mut event_stream = EventStream::new();
 
