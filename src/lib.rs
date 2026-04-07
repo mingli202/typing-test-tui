@@ -70,9 +70,7 @@ impl App {
             let action = tokio::select! {
                 Some(custom_event) = event_rx.recv() => {
                     match custom_event {
-                        CustomEvent::Quit => {self.exit = false;
-                            Action::None
-                        },
+                        CustomEvent::Quit => Action::Quit,
                         CustomEvent::Tick => self.state.on_tick(),
                         CustomEvent::Render => {
                             terminal.draw(|frame| self.draw(frame))?;
