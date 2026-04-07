@@ -14,6 +14,7 @@ use self::toast::{Toast, ToastMessage};
 
 pub mod config;
 pub mod data;
+mod selection;
 mod state;
 pub mod toast;
 mod typing_test;
@@ -30,7 +31,7 @@ impl App {
         let config = match Config::load().await {
             Ok(config) => config,
             Err(e) => {
-                let _ = toast.send(ToastMessage::error(e));
+                let _ = toast.send(ToastMessage::warning(e));
                 Config::default()
             }
         };
@@ -120,7 +121,7 @@ impl App {
     }
 
     fn handle_toast_action(&mut self) {
-        if let Ok(action) = self.toast.action_rx.try_recv() {
+        while let Ok(action) = self.toast.action_rx.try_recv() {
             self.toast.handle_action(action);
         }
     }

@@ -1,6 +1,6 @@
 [package]
 name = "typing-test-tui"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Typing speed test tui in rust"
@@ -8,6 +8,7 @@ repository = "https://github.com/mingli202/typing-test-tui"
 authors = ["mingli202"]
 
 [dependencies]
+clap = { version = "4.5.49", features = ["derive"] }
 color-eyre = "0.6.5"
 dirs = "6.0.0"
 itertools = "0.14.0"

@@ -24,6 +24,7 @@ pub enum Action {
 pub struct TypingStats {
     wpm: f64,
     current_index: usize,
+    elapsed: Duration,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -31,6 +32,7 @@ pub enum Mode {
     #[default]
     Quote,
     Words(usize),
+    Time(usize),
 }
 
 impl Mode {
@@ -38,11 +40,23 @@ impl Mode {
         match self {
             Mode::Quote => Data::get_random_quote(),
             Mode::Words(n) => Data::get_n_random_words(*n),
+            // TODO: new lines as the user reaches the end
+            // max 80 char per line -> ~16 words
+            // preload 4 lines
+            //
+            // NOTE: require refactor of current architecture or it will become messy
+            // for now, just assume the user won't type more than 240 wpm
+            Mode::Time(t) => {
+                let mut data = Data::get_n_random_words(t * 4);
+                data.source = format!("{} seconds", t);
+                data
+            }
         }
     }
 }
 
 pub struct State {
+    // (time, wpm)
     history: Vec<(f64, f64)>,
     mode: Mode,
     data: Data,
@@ -108,6 +122,11 @@ impl State {
                             if has_ended {
                                 let wpm = typing_test.net_wpm();
                                 let accuracy = typing_test.accuracy();
+
+                                if let Some(elapsed) = typing_test.elapsed_since_start_sec() {
+                                    self.history.push((elapsed.as_secs_f64(), wpm));
+                                }
+
                                 self.screen = Screen::new_end_screen(wpm, accuracy);
                             }
                         }
@@ -119,22 +138,22 @@ impl State {
                         }
                         KeyCode::Left => {
                             selected_mode.handle_left();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Right => {
                             selected_mode.handle_right();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Up => {
                             selected_mode.handle_up();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         KeyCode::Down => {
                             selected_mode.handle_down();
-                            let mode = selected_mode.to_mode();
+                            let mode = selected_mode.selected_mode();
                             return self.update_mode_if_different(mode);
                         }
                         _ => {}
@@ -171,17 +190,25 @@ impl State {
                 if typing_test.has_started()
                     && matches!(elapsed, Some(duration) if duration > Duration::from_secs(1))
                 {
-                    let wpm = typing_test.current_net_wpm();
+                    let wpm = typing_test.net_wpm();
 
                     if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
                         stats.wpm = wpm;
                         stats.current_index = typing_test.word_index;
+                        stats.elapsed = elapsed.unwrap_or(Duration::from_secs(0));
 
                         *stats_last_updated_time = Instant::now();
                     }
 
                     if let Some(elapsed) = elapsed {
                         self.history.push((elapsed.as_secs_f64(), wpm));
+
+                        if let Mode::Time(max_time) = self.mode
+                            && elapsed > Duration::from_secs(max_time as u64)
+                        {
+                            let accuracy = typing_test.accuracy();
+                            self.screen = Screen::new_end_screen(wpm, accuracy)
+                        }
                     }
                 }
             }
@@ -219,7 +246,7 @@ impl State {
             line!("Next <Tab>  Quit <Esc>"),
             line!("Select mode <Up/Down/Left/Right>"),
         ]
-        .fg(Color::Gray)
+        .fg(Color::DarkGray)
         .centered();
 
         let mut menu_area = area.centered_horizontally(Constraint::Length(text.width() as u16));
@@ -230,7 +257,7 @@ impl State {
 
     /// Renders the menu of keybinds at the bottom
     fn render_bottom_menu_end_screen(area: Rect, buf: &mut Buffer) {
-        let line = Line::raw("Next <Tab>  Quit <Esc/q>").fg(Color::Gray);
+        let line = Line::raw("Next <Tab>  Quit <Esc/q>").fg(Color::DarkGray);
         let mut menu_area = area.centered_horizontally(Constraint::Length(line.width() as u16));
         menu_area.y = area.bottom() - 2;
 
@@ -303,11 +330,21 @@ impl Widget for &State {
             } => {
                 typing_test.render(typing_test_area, buf);
 
-                let wpm = stats.wpm;
-                let cur_index = stats.current_index;
-                let n_words = typing_test.n_words();
                 let stats_area = typing_test_area.offset(Offset { x: 0, y: -2 });
-                let line = line![format!("{}/{} {:.0}", cur_index, n_words, wpm)];
+                let wpm = stats.wpm;
+
+                let line = match self.mode {
+                    Mode::Time(t) => {
+                        let elapsed = stats.elapsed;
+                        let remaining = u64::max(0, t as u64 - elapsed.as_secs());
+                        line![format!("{} {:.0}", remaining, wpm)]
+                    }
+                    _ => {
+                        let cur_index = stats.current_index;
+                        let n_words = typing_test.n_words();
+                        line![format!("{}/{} {:.0}", cur_index, n_words, wpm)]
+                    }
+                };
 
                 line.render(stats_area, buf);
 

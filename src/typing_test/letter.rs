@@ -54,7 +54,7 @@ impl Letter {
             } else {
                 Color::Red
             }),
-            TypedState::NotTyped => Span::raw(self.letter.to_string()).fg(Color::Gray),
+            TypedState::NotTyped => Span::raw(self.letter.to_string()).fg(Color::DarkGray),
             TypedState::Extra => Span::raw(self.letter.to_string()).fg(Color::Red),
         }
     }
