@@ -6,8 +6,7 @@ use ratatui::layout::Rect;
 use ratatui::macros::text;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, BorderType, Paragraph, Widget, Wrap};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::task::JoinHandle;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::sleep;
 
 use crate::CustomEvent;
