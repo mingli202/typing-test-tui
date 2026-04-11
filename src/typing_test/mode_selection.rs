@@ -5,7 +5,7 @@ use ratatui::layout::Rect;
 use ratatui::widgets::Widget;
 
 use crate::model::Mode;
-use crate::selection::{self, Selection, SelectionItem};
+use crate::util::selection::{self, Selection, SelectionItem};
 
 #[derive(PartialEq, Clone)]
 pub enum ModeSelectionOption {

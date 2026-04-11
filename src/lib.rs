@@ -12,16 +12,13 @@ use self::model::{AppModel, handle_action, update, view};
 use self::msg::Msg;
 
 pub mod action;
-pub mod config;
 pub mod data;
 mod endscreen;
 mod model;
 mod msg;
-mod selection;
 mod state;
-pub mod toast;
 mod typing_test;
-mod view;
+mod util;
 
 pub enum CustomEvent {
     Quit,
@@ -46,7 +43,7 @@ pub async fn run(terminal: &mut DefaultTerminal, fps: usize, tps: usize) -> colo
                         terminal.draw(|frame| view(&app_model, frame))?;
                         None
                     }
-                    CustomEvent::Key(key) => update(&mut app_model, Msg::Key(key.code)),
+                    CustomEvent::Key(key) => update(&mut app_model, Msg::Key(key)),
                 }
 
             }

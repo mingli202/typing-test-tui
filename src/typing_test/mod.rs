@@ -10,7 +10,6 @@ use ratatui::widgets::Widget;
 use crate::action::Action;
 use crate::endscreen::EndScreenModel;
 use crate::model::{Mode, Screen, SharedModel};
-use crate::msg::Msg;
 
 use self::mode_selection::ModeSelection;
 use self::typing::TypingTest;
@@ -19,6 +18,11 @@ mod letter;
 mod mode_selection;
 mod typing;
 mod word;
+
+pub enum Msg {
+    Tick,
+    Key(KeyCode),
+}
 
 #[derive(Debug, Default)]
 pub struct TypingStats {
@@ -80,7 +84,7 @@ pub fn update(
                 typing_test.on_backspace();
             }
             KeyCode::Tab => {
-                return Some(Screen::new_typing(shared_model));
+                return Some(Action::new_typing_screen(shared_model));
             }
             KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => {
                 return handle_arrow_keys(selected_mode, shared_model, key);
@@ -109,7 +113,7 @@ pub fn update(
                 {
                     let accuracy = typing_test.accuracy();
                     let wpm = typing_test.net_wpm();
-                    return Some(Screen::new_end(wpm, accuracy));
+                    return Some(Action::new_end_screen(wpm, accuracy));
                 }
 
                 stats.elapsed = elapsed
@@ -147,7 +151,7 @@ fn handle_arrow_keys(
         && selected_mode != shared_model.mode
     {
         shared_model.mode = selected_mode.clone();
-        return Some(Screen::new_typing(shared_model));
+        return Some(Action::new_typing_screen(shared_model));
     }
 
     None

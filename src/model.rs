@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Constraint;
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,6 @@ use crate::action::Action;
 use crate::data::Data;
 use crate::endscreen::{self, EndScreenModel};
 pub use crate::msg::Msg;
-use crate::toast::ToastMessage;
 use crate::typing_test::{self, TypingModel};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -37,9 +37,9 @@ impl Mode {
     }
 }
 
-struct Toast {
-    pub messages: Vec<ToastMessage>,
-}
+// struct Toast {
+//     pub messages: Vec<ToastMessage>,
+// }
 
 struct Config {}
 
@@ -80,11 +80,25 @@ impl AppModel {
 }
 
 pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
-    match &mut model.screen {
-        Screen::Typing(typing_model) => {
-            typing_test::update(typing_model, &mut model.shared_model, msg)
+    if let Msg::Key(
+        KeyEvent {
+            code: KeyCode::Esc, ..
         }
-        Screen::End(endscreen_model) => endscreen::update(endscreen_model, msg),
+        | KeyEvent {
+            code: KeyCode::Char('c'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+        },
+    ) = msg
+    {
+        model.exit = true
+    }
+
+    match &mut model.screen {
+        Screen::Typing(typing_model) => typing_test::Msg::from(msg)
+            .and_then(|msg| typing_test::update(typing_model, &mut model.shared_model, msg)),
+        Screen::End(_) => endscreen::Msg::from(msg)
+            .and_then(|msg| endscreen::update(&mut model.shared_model, msg)),
     }
 }
 
