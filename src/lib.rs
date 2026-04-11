@@ -10,6 +10,7 @@ use tokio::time::interval;
 use self::action::Action;
 use self::model::{AppModel, handle_action, update, view};
 use self::msg::Msg;
+use self::util::toast::ToastAction;
 
 pub mod action;
 pub mod data;
@@ -25,13 +26,14 @@ pub enum CustomEvent {
     Tick,
     Render,
     Key(KeyEvent),
+    ToastAction(ToastAction),
 }
 
 pub async fn run(terminal: &mut DefaultTerminal, fps: usize, tps: usize) -> color_eyre::Result<()> {
-    let mut app_model = AppModel::init(model::Mode::Quote);
-
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
-    init_event_loop(event_tx, fps, tps);
+    init_event_loop(event_tx.clone(), fps, tps);
+
+    let mut app_model = AppModel::init(model::Mode::Quote, event_tx);
 
     while !app_model.exit {
         let action: Option<Action> = tokio::select! {
@@ -44,6 +46,7 @@ pub async fn run(terminal: &mut DefaultTerminal, fps: usize, tps: usize) -> colo
                         None
                     }
                     CustomEvent::Key(key) => update(&mut app_model, Msg::Key(key)),
+                    CustomEvent::ToastAction(action) => update(&mut app_model, Msg::ToastAction(action)),
                 }
 
             }

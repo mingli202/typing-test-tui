@@ -1,13 +1,18 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::Constraint;
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Constraint, Rect};
+use ratatui::widgets::Paragraph;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::UnboundedSender;
 
+use crate::CustomEvent;
 use crate::action::Action;
 use crate::data::Data;
 use crate::endscreen::{self, EndScreenModel};
 pub use crate::msg::Msg;
 use crate::typing_test::{self, TypingModel};
+use crate::util::toast::{self, Toast, ToastMessage};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum Mode {
@@ -57,16 +62,19 @@ pub struct SharedModel {
 
 pub struct AppModel {
     pub exit: bool,
-    // toast: Toast,
+    toast: Toast,
     // config: Config,
     screen: Screen,
     shared_model: SharedModel,
 }
 
 impl AppModel {
-    pub fn init(initial_mode: Mode) -> Self {
+    pub fn init(initial_mode: Mode, event_tx: UnboundedSender<CustomEvent>) -> Self {
+        let toast = Toast::new(event_tx);
+
         let data = initial_mode.get_data();
         let text = &data.text;
+
         AppModel {
             exit: false,
             screen: Screen::Typing(TypingModel::new(text, initial_mode.clone())),
@@ -75,47 +83,62 @@ impl AppModel {
                 history: vec![],
                 data,
             },
+            toast,
         }
     }
 }
 
 pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
-    if let Msg::Key(
-        KeyEvent {
-            code: KeyCode::Esc, ..
-        }
-        | KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        },
-    ) = msg
-    {
-        model.exit = true
-    }
+    match msg {
+        Msg::ToastAction(action) => model.toast.handle_action(action),
+        _ => {
+            if let Msg::Key(
+                KeyEvent {
+                    code: KeyCode::Esc, ..
+                }
+                | KeyEvent {
+                    code: KeyCode::Char('c'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                },
+            ) = msg
+            {
+                model.exit = true
+            }
 
-    match &mut model.screen {
-        Screen::Typing(typing_model) => typing_test::Msg::from(msg)
-            .and_then(|msg| typing_test::update(typing_model, &mut model.shared_model, msg)),
-        Screen::End(_) => endscreen::Msg::from(msg)
-            .and_then(|msg| endscreen::update(&mut model.shared_model, msg)),
-    }
+            if let Msg::Key(key) = msg {
+                let _ = model.toast.send(ToastMessage::info(format!("{:?}", key)));
+            }
+
+            return match &mut model.screen {
+                Screen::Typing(typing_model) => typing_test::Msg::from(msg).and_then(|msg| {
+                    typing_test::update(typing_model, &mut model.shared_model, msg)
+                }),
+                Screen::End(_) => endscreen::Msg::from(msg)
+                    .and_then(|msg| endscreen::update(&mut model.shared_model, msg)),
+            };
+        }
+    };
+
+    None
 }
 
 pub fn view(model: &AppModel, frame: &mut Frame) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    let area = area.centered_horizontally(Constraint::Max(80));
+    let centered = area.centered_horizontally(Constraint::Max(80));
 
     match &model.screen {
         Screen::Typing(typing_model) => {
-            typing_test::view(typing_model, &model.shared_model, area, buf)
+            typing_test::view(typing_model, &model.shared_model, centered, buf)
         }
         Screen::End(endscreen_model) => {
-            endscreen::view(endscreen_model, &model.shared_model, area, buf)
+            endscreen::view(endscreen_model, &model.shared_model, centered, buf)
         }
     };
+
+    toast::view(&model.toast, area, buf);
 }
 
 pub fn handle_action(model: &mut AppModel, action: Action) {

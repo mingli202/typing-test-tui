@@ -1,10 +1,16 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use ratatui::style::{Color, Style};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::macros::text;
+use ratatui::style::{Color, Style, Stylize};
+use ratatui::widgets::{Block, BorderType, Paragraph, Widget, Wrap};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+
+use crate::CustomEvent;
 
 /// The possible toast level
 /// The only thing this changes is the border color
@@ -75,14 +81,8 @@ pub struct Toast {
     /// The array of messages
     pub messages: VecDeque<ToastMessage>,
 
-    /// Receiver of ToastAction
-    pub action_rx: UnboundedReceiver<ToastAction>,
-
-    /// Sender of ToastAction
-    tx: UnboundedSender<ToastAction>,
-
     /// Sender of a ToastMessage
-    toast_tx: UnboundedSender<ToastMessage>,
+    event_tx: UnboundedSender<CustomEvent>,
 }
 
 #[derive(Debug)]
@@ -93,35 +93,17 @@ pub enum ToastAction {
 
 impl Toast {
     /// A new toast manager with the given sender
-    pub fn new(toast_tx: UnboundedSender<ToastMessage>) -> Toast {
-        let (tx, rx) = mpsc::unbounded_channel();
+    pub fn new(event_tx: UnboundedSender<CustomEvent>) -> Toast {
         Toast {
             messages: VecDeque::new(),
-            action_rx: rx,
-            tx,
-            toast_tx,
+            event_tx,
         }
-    }
-
-    /// Listens for incoming Toast message and set a timeout to pop it after 3 seconds
-    pub fn init(&self, mut toast_rx: UnboundedReceiver<ToastMessage>) -> JoinHandle<()> {
-        let tx = self.tx.clone();
-        tokio::spawn(async move {
-            while let Some(msg) = toast_rx.recv().await {
-                let _ = tx.clone().send(ToastAction::Push(msg));
-
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    sleep(Duration::from_secs(3)).await;
-                    let _ = tx.send(ToastAction::Pop);
-                });
-            }
-        })
     }
 
     /// Convenient method to send message
     pub fn send(&self, msg: ToastMessage) -> color_eyre::Result<()> {
-        self.toast_tx.send(msg)?;
+        self.event_tx
+            .send(CustomEvent::ToastAction(ToastAction::Push(msg)))?;
 
         Ok(())
     }
@@ -137,11 +119,45 @@ impl Toast {
                 if self.messages.len() > 20 {
                     self.messages.pop_back();
                 }
+                let event_tx = self.event_tx.clone();
+                tokio::spawn(async move {
+                    sleep(Duration::from_secs(3)).await;
+                    let _ = event_tx.send(CustomEvent::ToastAction(ToastAction::Pop));
+                });
             }
             ToastAction::Pop => {
                 self.messages.pop_back();
             }
         }
+    }
+}
+
+pub fn view(toast: &Toast, area: Rect, buf: &mut Buffer) {
+    let messages = &toast.messages;
+    let mut single_toast_area = Rect::new(0, 0, 30, 0);
+
+    single_toast_area.x = area.width - single_toast_area.width;
+
+    for message in messages {
+        let paragraph =
+            Paragraph::new(text![message.msg.clone()].fg(Color::White).bg(Color::Black))
+                .black()
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::bordered()
+                        .border_style(message.level.style())
+                        .border_type(BorderType::Rounded),
+                );
+
+        // calculate height after wrap
+        // -2 because it seems it doesn't handle the border
+        let line_count = paragraph.line_count(single_toast_area.width - 2);
+        single_toast_area.height = line_count as u16;
+
+        paragraph.render(single_toast_area, buf);
+
+        // update y for the next area
+        single_toast_area.y += line_count as u16;
     }
 }
 
