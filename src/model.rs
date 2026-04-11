@@ -86,11 +86,11 @@ impl AppModel {
     }
 }
 
-pub async fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
+pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
     match msg {
         Msg::ToastAction(action) => model.toast.handle_action(action),
         Msg::ConfigUpdate(config_update) => {
-            model.config.handle_config_update(config_update).await;
+            model.config.handle_config_update(config_update);
         }
         _ => {
             if let Msg::Key(

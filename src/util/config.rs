@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use tokio::fs;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,10 +15,10 @@ pub enum ConfigUpdate {
 
 pub struct Config {
     pub data: ConfigData,
-    event_tx: UnboundedSender<CustomEvent>,
+    config_tx: UnboundedSender<ConfigData>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ConfigData {
     #[serde(default)]
     pub mode: Mode,
@@ -34,35 +34,46 @@ impl Config {
             }
         };
 
-        Config { data, event_tx }
+        let (config_tx, config_rx) = mpsc::unbounded_channel();
+
+        init_config_loop(config_rx, event_tx);
+
+        Config { data, config_tx }
     }
 
-    pub async fn handle_config_update(&mut self, update: ConfigUpdate) {
+    pub fn handle_config_update(&mut self, update: ConfigUpdate) {
         match update {
             ConfigUpdate::Mode(mode) => {
                 self.data.mode = mode;
-                self.update().await;
+                let _ = self.config_tx.send(self.data.clone());
             }
         }
     }
+}
 
-    /// Writes to the file
-    async fn update(&self) {
-        let result: Result<(), String> = async {
-            let serialized = toml::to_string(&self.data).map_err(|e| e.to_string())?;
-            let path = get_config_path().ok_or_else(|| "Problem getting file path".to_string())?;
-            fs::write(path, serialized).await.map_err(|e| e.to_string())
-        }
-        .await;
+fn init_config_loop(
+    mut config_rx: UnboundedReceiver<ConfigData>,
+    event_tx: UnboundedSender<CustomEvent>,
+) {
+    tokio::spawn(async move {
+        while let Some(data) = config_rx.recv().await {
+            let result: Result<(), String> = async {
+                let serialized = toml::to_string(&data).map_err(|e| e.to_string())?;
+                let path =
+                    get_config_path().ok_or_else(|| "Problem getting file path".to_string())?;
+                fs::write(path, serialized).await.map_err(|e| e.to_string())
+            }
+            .await;
 
-        if let Err(e) = result {
-            toast::send(
-                &self.event_tx,
-                ToastMessage::error(format!("Could not update config file: {}", e)),
-            )
-            .expect("could not send message to toast");
+            if let Err(e) = result {
+                toast::send(
+                    &event_tx,
+                    ToastMessage::error(format!("Could not update config file: {}", e)),
+                )
+                .expect("could not send message to toast");
+            }
         }
-    }
+    });
 }
 
 /// Try to load the config file from the default path (~/.typing-test-tui.toml)
