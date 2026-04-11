@@ -57,8 +57,6 @@ pub fn update(
         selected_mode,
     } = typing_model;
 
-    let mut actions = vec![];
-
     match msg {
         Msg::Key(key) => match key {
             KeyCode::Char(c) => {
@@ -82,25 +80,39 @@ pub fn update(
                 typing_test.on_backspace();
             }
             KeyCode::Tab => {
-                shared_model.history.clear();
-                shared_model.data = shared_model.mode.get_data();
-                let text = &shared_model.data.text;
-                return Some(Action::SwitchScreen(Screen::Typing(TypingModel::new(
-                    text,
-                    shared_model.mode.clone(),
-                ))));
+                return Some(Screen::new_typing(shared_model));
             }
             KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => {
-                if let Some(action) = handle_arrow_keys(selected_mode, &mut shared_model.mode, key)
-                {
-                    actions.push(action);
-                }
+                return handle_arrow_keys(selected_mode, shared_model, key);
             }
             _ => {}
         },
         Msg::Tick => {
-            if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
-                *stats_last_updated_time = Instant::now();
+            let elapsed = typing_test.elapsed_since_start_sec();
+            if typing_test.has_started()
+                && let Some(elapsed) = elapsed
+                && elapsed > Duration::from_secs(1)
+            {
+                if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
+                    *stats_last_updated_time = Instant::now();
+
+                    let wpm = typing_test.net_wpm();
+
+                    stats.wpm = wpm;
+                    stats.current_index = typing_test.word_index;
+
+                    shared_model.history.push((elapsed.as_secs_f64(), wpm));
+                }
+
+                if let Mode::Time(max_time) = shared_model.mode
+                    && elapsed > Duration::from_secs(max_time as u64)
+                {
+                    let accuracy = typing_test.accuracy();
+                    let wpm = typing_test.net_wpm();
+                    return Some(Screen::new_end(wpm, accuracy));
+                }
+
+                stats.elapsed = elapsed
             }
         }
     };
@@ -108,9 +120,10 @@ pub fn update(
     None
 }
 
+/// Arrow keys change the current mode
 fn handle_arrow_keys(
     selected_mode: &mut ModeSelection,
-    current_mode: &mut Mode,
+    shared_model: &mut SharedModel,
     key: KeyCode,
 ) -> Option<Action> {
     match key {
@@ -131,15 +144,16 @@ fn handle_arrow_keys(
     let selected_mode = selected_mode.selected_mode();
 
     if let Some(selected_mode) = selected_mode
-        && selected_mode != *current_mode
+        && selected_mode != shared_model.mode
     {
-        *current_mode = selected_mode.clone();
-        return Some(Action::UpdateConfigMode(selected_mode.clone()));
+        shared_model.mode = selected_mode.clone();
+        return Some(Screen::new_typing(shared_model));
     }
 
     None
 }
 
+/// Main view function for typing test screen
 pub fn view(typing_model: &TypingModel, shared_model: &SharedModel, area: Rect, buf: &mut Buffer) {
     let typing_test_area = area.centered_vertically(Constraint::Length(3));
     typing::view_typing_test(&typing_model.typing_test, typing_test_area, buf);
@@ -156,6 +170,7 @@ pub fn view(typing_model: &TypingModel, shared_model: &SharedModel, area: Rect, 
     view_bottom_menu_typing(area, buf);
 }
 
+/// Render stats
 fn view_stats(
     stats: &TypingStats,
     mode: &Mode,
@@ -181,6 +196,7 @@ fn view_stats(
     line.render(stats_area, buf);
 }
 
+/// Render some instructions
 fn view_bottom_menu_typing(area: Rect, buf: &mut Buffer) {
     let text = text![
         line!("Next <Tab>  Quit <Esc>"),
