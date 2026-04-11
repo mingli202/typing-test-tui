@@ -1,119 +1,93 @@
 use std::path::PathBuf;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::task::JoinHandle;
-use tokio::{fs, io};
+use tokio::fs;
+use tokio::sync::mpsc::UnboundedSender;
 
 use serde::{Deserialize, Serialize};
 
+use crate::CustomEvent;
 use crate::model::Mode;
 
-use super::toast::ToastMessage;
+use super::toast::{self, ToastMessage};
 
 pub enum ConfigUpdate {
     Mode(Mode),
 }
 
-#[derive(Serialize, Deserialize, Default)]
 pub struct Config {
+    pub data: ConfigData,
+    event_tx: UnboundedSender<CustomEvent>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct ConfigData {
     #[serde(default)]
     pub mode: Mode,
 }
 
 impl Config {
-    /// Initializes listener for config updates
-    /// Sends a error toast message when there's an error
-    pub fn init(
-        mut rx: UnboundedReceiver<ConfigUpdate>,
-        toast_tx: UnboundedSender<ToastMessage>,
-    ) -> JoinHandle<()> {
-        tokio::spawn(async move {
-            while let Some(mut update) = rx.recv().await {
-                while let Ok(newer) = rx.try_recv() {
-                    update = newer;
-                }
-
-                match update {
-                    ConfigUpdate::Mode(mode) => {
-                        let config = match Config::load().await {
-                            Ok(config) => config,
-                            Err(e) => {
-                                let _ = toast_tx.send(ToastMessage::warning(e));
-
-                                Config::default()
-                            }
-                        };
-
-                        if let Err(err) = config.mode(mode).update().await {
-                            toast_tx
-                                .send(ToastMessage::error(format!(
-                                    "Could not update config. {}",
-                                    err
-                                )))
-                                .expect("could not send message to toast");
-                        }
-                    }
-                };
+    pub async fn new(event_tx: UnboundedSender<CustomEvent>) -> Config {
+        let data = match load().await {
+            Ok(data) => data,
+            Err(s) => {
+                let _ = toast::send(&event_tx, ToastMessage::warning(s));
+                ConfigData::default()
             }
-        })
+        };
+
+        Config { data, event_tx }
     }
 
-    /// Try to load the config file from the default path (~/.typing-test-tui.toml)
-    pub async fn load() -> color_eyre::Result<Config, String> {
-        if let Some(path) = get_config_path() {
-            let deserialized = fs::read_to_string(&path).await;
-            match deserialized {
-                Ok(s) => match toml::from_str::<Config>(&s) {
-                    Ok(c) => Ok(c),
-                    Err(e) => Err(format!("Could not deserialize config file. {}", e)),
-                },
-                Err(e) => {
-                    let reason = match e.kind() {
-                        io::ErrorKind::NotFound => {
-                            if let Err(e) = Config::default().update().await {
-                                format!(
-                                    "Could not create default config file at {}. {}",
-                                    path.display(),
-                                    e
-                                )
-                            } else {
-                                format!(
-                                    "Could not find config file at {}, using default.",
-                                    path.display()
-                                )
-                            }
-                        }
-                        _ => {
-                            format!("Can't read config file, using defaults. {}", e)
-                        }
-                    };
-
-                    Err(reason)
-                }
+    pub async fn handle_config_update(&mut self, update: ConfigUpdate) {
+        match update {
+            ConfigUpdate::Mode(mode) => {
+                self.data.mode = mode;
+                self.update().await;
             }
-        } else {
-            Err("Could not load config path from ~/.typing-test-tui.toml".to_string())
         }
     }
 
-    /// Returns self with the given move set
-    fn mode(mut self, mode: Mode) -> Config {
-        self.mode = mode;
-        self
-    }
-
-    /// Consumes self to write to the file
-    async fn update(self) -> color_eyre::Result<()> {
-        if let Some(file) = get_config_path() {
-            let serialized = toml::to_string(&self)?;
-            fs::write(file, serialized).await?;
-
-            return Ok(());
+    /// Writes to the file
+    async fn update(&self) {
+        let result: Result<(), String> = async {
+            let serialized = toml::to_string(&self.data).map_err(|e| e.to_string())?;
+            let path = get_config_path().ok_or_else(|| "Problem getting file path".to_string())?;
+            fs::write(path, serialized).await.map_err(|e| e.to_string())
         }
+        .await;
 
-        Err(color_eyre::Report::msg(
-            "Could not load config path from ~/.typing-test-tui.toml".to_string(),
-        ))
+        if let Err(e) = result {
+            toast::send(
+                &self.event_tx,
+                ToastMessage::error(format!("Could not update config file: {}", e)),
+            )
+            .expect("could not send message to toast");
+        }
     }
+}
+
+/// Try to load the config file from the default path (~/.typing-test-tui.toml)
+async fn load() -> color_eyre::Result<ConfigData, String> {
+    if let Some(path) = get_config_path() {
+        let deserialized = fs::read_to_string(&path).await;
+        match deserialized {
+            Ok(s) => match toml::from_str::<ConfigData>(&s) {
+                Ok(c) => Ok(c),
+                Err(e) => Err(format!("Could not deserialize config file. {}", e)),
+            },
+            Err(e) => Err(format!("Can't read config file, using defaults. {}", e)),
+        }
+    } else {
+        Err("Could not load config path from ~/.typing-test-tui.toml".to_string())
+    }
+}
+
+pub fn update(
+    event_tx: &UnboundedSender<CustomEvent>,
+    update: ConfigUpdate,
+) -> color_eyre::Result<()> {
+    event_tx.send(CustomEvent::ConfigUpdate(update))?;
+
+    Ok(())
 }
 
 /// Gets the file as a PathBuf

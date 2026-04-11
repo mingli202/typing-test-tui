@@ -10,6 +10,8 @@ use ratatui::widgets::Widget;
 use crate::action::Action;
 use crate::endscreen::EndScreenModel;
 use crate::model::{Mode, Screen, SharedModel};
+use crate::util::config::{self, ConfigUpdate};
+use crate::util::toast::{self, ToastMessage};
 
 use self::mode_selection::ModeSelection;
 use self::typing::TypingTest;
@@ -151,6 +153,12 @@ fn handle_arrow_keys(
         && selected_mode != shared_model.mode
     {
         shared_model.mode = selected_mode.clone();
+
+        let _ = config::update(
+            &shared_model.event_tx,
+            ConfigUpdate::Mode(selected_mode.clone()),
+        );
+
         return Some(Action::new_typing_screen(shared_model));
     }
 

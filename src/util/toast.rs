@@ -131,6 +131,13 @@ impl Toast {
     }
 }
 
+/// Convenient method to send message
+pub fn send(event_tx: &UnboundedSender<CustomEvent>, msg: ToastMessage) -> color_eyre::Result<()> {
+    event_tx.send(CustomEvent::ToastAction(ToastAction::Push(msg)))?;
+
+    Ok(())
+}
+
 pub fn view(toast: &Toast, area: Rect, buf: &mut Buffer) {
     let messages = &toast.messages;
     let mut single_toast_area = Rect::new(0, 0, 30, 0);

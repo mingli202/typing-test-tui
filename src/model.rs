@@ -1,8 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
-use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Rect};
-use ratatui::widgets::Paragraph;
+use ratatui::layout::Constraint;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -12,9 +10,10 @@ use crate::data::Data;
 use crate::endscreen::{self, EndScreenModel};
 pub use crate::msg::Msg;
 use crate::typing_test::{self, TypingModel};
-use crate::util::toast::{self, Toast, ToastMessage};
+use crate::util::config::Config;
+use crate::util::toast::{self, Toast};
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub enum Mode {
     #[default]
     Quote,
@@ -42,12 +41,6 @@ impl Mode {
     }
 }
 
-// struct Toast {
-//     pub messages: Vec<ToastMessage>,
-// }
-
-struct Config {}
-
 pub enum Screen {
     Typing(TypingModel),
     End(EndScreenModel),
@@ -58,20 +51,23 @@ pub struct SharedModel {
     // (time, wpm)
     pub history: Vec<(f64, f64)>,
     pub data: Data,
+    pub event_tx: UnboundedSender<CustomEvent>,
 }
 
 pub struct AppModel {
     pub exit: bool,
     toast: Toast,
-    // config: Config,
+    config: Config,
     screen: Screen,
     shared_model: SharedModel,
 }
 
 impl AppModel {
-    pub fn init(initial_mode: Mode, event_tx: UnboundedSender<CustomEvent>) -> Self {
-        let toast = Toast::new(event_tx);
+    pub async fn init(event_tx: UnboundedSender<CustomEvent>) -> Self {
+        let config = Config::new(event_tx.clone()).await;
+        let toast = Toast::new(event_tx.clone());
 
+        let initial_mode = config.data.mode.clone();
         let data = initial_mode.get_data();
         let text = &data.text;
 
@@ -82,15 +78,20 @@ impl AppModel {
                 mode: initial_mode,
                 history: vec![],
                 data,
+                event_tx,
             },
             toast,
+            config,
         }
     }
 }
 
-pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
+pub async fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
     match msg {
         Msg::ToastAction(action) => model.toast.handle_action(action),
+        Msg::ConfigUpdate(config_update) => {
+            model.config.handle_config_update(config_update).await;
+        }
         _ => {
             if let Msg::Key(
                 KeyEvent {
@@ -104,10 +105,6 @@ pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
             ) = msg
             {
                 model.exit = true
-            }
-
-            if let Msg::Key(key) = msg {
-                let _ = model.toast.send(ToastMessage::info(format!("{:?}", key)));
             }
 
             return match &mut model.screen {
