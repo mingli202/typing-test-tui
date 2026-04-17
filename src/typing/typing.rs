@@ -30,6 +30,8 @@ pub struct TypingTest {
 
     /// When the test as ended
     time_ended: Option<Instant>,
+
+    n_wrongs: usize,
 }
 
 impl TypingTest {
@@ -43,6 +45,7 @@ impl TypingTest {
             time_started: None,
             time_ended: None,
             words,
+            n_wrongs: 0,
         }
     }
 
@@ -93,11 +96,7 @@ impl TypingTest {
     /// Gets the numbers of wrong words up to the current word the user is typing
     /// Do not include the word that's being typed
     pub fn n_wrongs(&self) -> usize {
-        self.words
-            .iter()
-            .take(self.word_index)
-            .filter(|word| word.is_error())
-            .count()
+        self.n_wrongs
     }
 
     /// Total number of letters typed excluding extras up to the currently typed word
@@ -160,6 +159,12 @@ impl TypingTest {
 
             self.word_index -= 1;
             self.letter_index = self.words[self.word_index].last_typed_letter_index;
+
+            if let Some(word) = self.get_curr_word()
+                && word.is_error()
+            {
+                self.n_wrongs -= 1;
+            }
         } else {
             self.letter_index -= 1;
         }
@@ -220,6 +225,10 @@ impl TypingTest {
 
         let curr_word = &mut self.words[self.word_index];
         curr_word.last_typed_letter_index = self.letter_index;
+
+        if curr_word.is_error() {
+            self.n_wrongs += 1;
+        }
 
         let is_last_word = self.word_index >= len - 1;
 
@@ -597,6 +606,65 @@ mod typing_test_test {
         "Hel world!".chars().for_each(|c| {
             test.on_type(c);
         });
+
+        assert_eq!(test.n_wrongs(), 1);
+    }
+
+    #[test]
+    fn n_wrongs2() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel worlddd ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 2);
+    }
+
+    #[test]
+    fn n_wrongs_with_backspace() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 1, "should have an error");
+
+        test.on_backspace();
+
+        assert_eq!(test.n_wrongs(), 0, "should have removed the error");
+
+        "lo ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 0);
+    }
+
+    #[test]
+    fn n_wrongs_with_backspace2() {
+        let mut test = TypingTest::new("Hello world! this is peak");
+
+        "Hel world! thasdf is ewa".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.n_wrongs(),
+            2,
+            "should have 2 errors. current word should not be part of errors"
+        );
+
+        for _ in 0..7 {
+            test.on_backspace();
+        }
+
+        assert_eq!(test.n_wrongs(), 1, "should have removed an error");
+
+        for _ in 0..8 {
+            test.on_backspace();
+        }
 
         assert_eq!(test.n_wrongs(), 1);
     }
