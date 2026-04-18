@@ -31,7 +31,11 @@ pub struct TypingTest {
     /// When the test as ended
     time_ended: Option<Instant>,
 
+    /// Number of wrong words up to the current typed word (exclusively)
     n_wrongs: usize,
+
+    /// Number of letters typed. Does not include untyped letters or extra letters
+    n_letters_typed: usize,
 }
 
 impl TypingTest {
@@ -46,6 +50,7 @@ impl TypingTest {
             time_ended: None,
             words,
             n_wrongs: 0,
+            n_letters_typed: 0,
         }
     }
 
@@ -73,6 +78,8 @@ impl TypingTest {
             } else {
                 let curr_letter = curr_word.get_letter_mut(self.letter_index).unwrap();
                 curr_letter.typed_state = TypedState::Typed(c);
+
+                self.n_letters_typed += 1;
             }
 
             let is_last_word_error = curr_word.is_error();
@@ -102,12 +109,7 @@ impl TypingTest {
     /// Total number of letters typed excluding extras up to the currently typed word
     /// Include the word that's being typed
     pub fn letters_typed(&self) -> usize {
-        self.words
-            .iter()
-            .take(self.word_index + 1)
-            .map(|word| word.n_letters_typed())
-            .sum::<usize>()
-            + self.word_index // for spaces
+        self.n_letters_typed
     }
 
     /// Starts the typing test timer if it hasn't been started
@@ -177,6 +179,7 @@ impl TypingTest {
                 }
             } else {
                 letter.typed_state = TypedState::NotTyped;
+                self.n_letters_typed -= 1;
             }
         }
     }
@@ -238,6 +241,7 @@ impl TypingTest {
 
         self.word_index += 1;
         self.letter_index = 0;
+        self.n_letters_typed += 1;
 
         false
     }
