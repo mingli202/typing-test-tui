@@ -784,4 +784,19 @@ mod typing_test_test {
 
         assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
     }
+
+    #[test]
+    fn letters_typed() {
+        let mut test = TypingTest::new("Hello World!");
+
+        "Hel Worlasdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.letters_typed(),
+            10,
+            "should not count untyped letters or extra letters"
+        )
+    }
 }
