@@ -307,7 +307,7 @@ fn split_into_lines(typing_test: &TypingTest, max_width: usize) -> (Text<'_>, us
     let mut current_line: Line = line![];
     let mut cursor_index = 0;
 
-    typing_test.words.iter().enumerate().for_each(|(i, word)| {
+    for (i, word) in typing_test.words.iter().enumerate() {
         let mut letters = word
             .letters
             .iter()
@@ -342,7 +342,7 @@ fn split_into_lines(typing_test: &TypingTest, max_width: usize) -> (Text<'_>, us
                 .spans
                 .append(&mut line.into_iter().collect_vec());
         }
-    });
+    }
 
     lines.push(current_line);
 
