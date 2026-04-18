@@ -167,19 +167,23 @@ impl TypingTest {
             {
                 self.n_wrongs -= 1;
             }
+
+            // decrement the space character that completed the previous word
+            self.n_letters_typed -= 1;
         } else {
             self.letter_index -= 1;
         }
 
-        let is_overshoot = self.letter_index >= self.words[self.word_index].actual_len();
         if let Some(letter) = self.get_curr_letter_mut() {
-            if is_overshoot {
-                if let Some(word) = self.get_curr_word_mut() {
-                    word.pop();
+            match letter.typed_state {
+                TypedState::Typed(_) => {
+                    letter.typed_state = TypedState::NotTyped;
+                    self.n_letters_typed -= 1;
                 }
-            } else {
-                letter.typed_state = TypedState::NotTyped;
-                self.n_letters_typed -= 1;
+                TypedState::Extra => {
+                    self.get_curr_word_mut().and_then(|word| word.pop());
+                }
+                TypedState::NotTyped => (),
             }
         }
     }
@@ -838,6 +842,29 @@ mod typing_test_test {
         assert_eq!(
             test.letters_typed(),
             2,
+            "should not count untyped letters or extra letters"
+        );
+    }
+
+    #[test]
+    fn letters_typed_and_backspace_2() {
+        let mut test = TypingTest::new("Hello World!");
+
+        "Hello ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.letters_typed(),
+            6,
+            "should not count untyped letters or extra letters"
+        );
+
+        test.on_backspace();
+
+        assert_eq!(
+            test.letters_typed(),
+            5,
             "should not count untyped letters or extra letters"
         );
     }
