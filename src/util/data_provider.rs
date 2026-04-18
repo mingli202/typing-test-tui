@@ -86,7 +86,9 @@ fn get_words(path: Option<String>) -> color_eyre::Result<Vec<String>> {
         include_str!("../../assets/english.json")
     };
 
-    Ok(serde_json::from_str::<Vec<String>>(json).unwrap())
+    let data = serde_json::from_str::<Vec<String>>(json)?;
+
+    Ok(data)
 }
 
 /// Gets all the quotes from the given path if Some, otherwise default to built-in quotes
@@ -97,8 +99,9 @@ fn get_quotes(path: Option<String>) -> color_eyre::Result<Vec<Data>> {
         include_str!("../../assets/quotes.json")
     };
 
-    Ok(serde_json::from_str::<HashMap<String, Vec<String>>>(json)
-        .unwrap()
+    let data = serde_json::from_str::<HashMap<String, Vec<String>>>(json)?;
+
+    Ok(data
         .into_iter()
         .flat_map(|(src, qs)| {
             let mut qs = qs;
