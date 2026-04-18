@@ -88,7 +88,7 @@ pub fn update(model: &mut AppModel, msg: Msg) -> Option<Action> {
                 },
             ) = msg
             {
-                model.exit = true
+                return Some(Action::Quit);
             }
 
             return match &mut model.screen {
