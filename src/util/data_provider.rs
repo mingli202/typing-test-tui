@@ -65,6 +65,14 @@ impl DataProvider {
             };
         }
 
+        if self.words.len() == 1 {
+            let word = self.words[0].clone();
+            return Data {
+                text: vec![word; n].join(" "),
+                source: format!("{} words", n),
+            };
+        }
+
         let mut rng = rand::rng();
 
         let mut v = Vec::with_capacity(n);
