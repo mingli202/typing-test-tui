@@ -142,7 +142,7 @@ pub fn view(toast: &Toast, area: Rect, buf: &mut Buffer) {
     let messages = &toast.messages;
     let mut single_toast_area = Rect::new(0, 0, 30, 0);
 
-    single_toast_area.x = area.width - single_toast_area.width;
+    single_toast_area.x = area.width.saturating_sub(single_toast_area.width);
 
     for message in messages {
         let paragraph =
