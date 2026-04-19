@@ -100,17 +100,6 @@ pub fn update(
                 && let Some(elapsed) = elapsed
                 && elapsed > Duration::from_secs(1)
             {
-                if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
-                    *stats_last_updated_time = Instant::now();
-
-                    let wpm = typing_test.net_wpm();
-
-                    stats.wpm = wpm;
-                    stats.current_index = typing_test.word_index;
-
-                    shared_model.history.push((elapsed.as_secs_f64(), wpm));
-                }
-
                 if let Mode::Time(max_time) = shared_model.mode
                     && elapsed > Duration::from_secs(max_time as u64)
                 {
@@ -120,6 +109,17 @@ pub fn update(
                     shared_model.history.push((elapsed.as_secs_f64(), wpm));
 
                     return Some(Action::new_end_screen(wpm, accuracy));
+                }
+
+                if stats_last_updated_time.elapsed() > Duration::from_secs(1) {
+                    *stats_last_updated_time = Instant::now();
+
+                    let wpm = typing_test.net_wpm();
+
+                    stats.wpm = wpm;
+                    stats.current_index = typing_test.word_index;
+
+                    shared_model.history.push((elapsed.as_secs_f64(), wpm));
                 }
 
                 stats.elapsed = elapsed
