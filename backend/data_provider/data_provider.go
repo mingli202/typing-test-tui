@@ -1,7 +1,6 @@
 package data_provider
 
 import (
-	"bytes"
 	"encoding/json"
 	"log"
 	"os"
@@ -12,32 +11,25 @@ type DataProvider struct {
 	repository []models.Data
 }
 
-func New() DataProvider {
+func NewDataProvider() (DataProvider, error) {
 	filepath := "../assets/english.json"
 
 	quotes_bytes, err := os.ReadFile(filepath)
 
 	if err != nil {
 		log.Printf("Could not load from %v: %v\n", filepath, err)
-		return default_provider()
+		return default_provider(), err
 	}
-
-	decoded := json.NewDecoder(bytes.NewReader(quotes_bytes))
 
 	var repository []models.Data
 
-	for decoded.More() {
-		var d models.Data
-		err := decoded.Decode(&d)
+	if err := json.Unmarshal(quotes_bytes, &repository); err != nil {
+		log.Printf("Could no decode into Data: %v", err)
+		return default_provider(), err
 
-		if err != nil {
-			log.Printf("Could no decode into Data: %v", err)
-		} else {
-			repository = append(repository, d)
-		}
 	}
 
-	return DataProvider{repository}
+	return DataProvider{repository}, nil
 }
 
 func default_provider() DataProvider {
