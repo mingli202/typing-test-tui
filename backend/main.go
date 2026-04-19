@@ -6,6 +6,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 const port = 8080
@@ -18,7 +22,7 @@ func main() {
 		fmt.Fprintf(w, "Ready at %v!\n", ctx.Value("serverAddr"))
 	})
 
-	ctx, cancelCtx := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%v", port),
@@ -30,7 +34,6 @@ func main() {
 	}
 
 	go func() {
-		defer cancelCtx()
 		log.Printf("Starting server on port %v\n", port)
 		err := server.ListenAndServe()
 
@@ -39,5 +42,18 @@ func main() {
 		}
 	}()
 
-	<-ctx.Done()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	<-quit
+	log.Println("Shutting down server")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shut down, %s\n", err)
+	}
+
+	log.Println("Server stopped")
 }
