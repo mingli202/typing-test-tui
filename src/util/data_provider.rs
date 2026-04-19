@@ -141,3 +141,154 @@ fn get_quotes(path: Option<String>) -> color_eyre::Result<Vec<Data>> {
         .filter(|q| !q.text.is_empty())
         .collect())
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_file_path(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        std::env::temp_dir().join(format!(
+            "typing_test_tui_data_provider_{name}_{}_{}.json",
+            std::process::id(),
+            nanos
+        ))
+    }
+
+    fn write_temp_file(name: &str, contents: &str) -> String {
+        let path = temp_file_path(name);
+        fs::write(&path, contents).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn get_n_random_words_returns_fallback_when_words_are_empty() {
+        let provider = DataProvider {
+            words: vec![],
+            quotes: vec![],
+        };
+
+        let data = provider.get_n_random_words(5);
+
+        assert_eq!(
+            data.text,
+            "No words found",
+            "empty datasets should use the fallback message"
+        );
+        assert_eq!(data.source, "No words found");
+    }
+
+    #[test]
+    fn get_n_random_words_with_single_word_repeats_for_requested_count() {
+        let provider = DataProvider {
+            words: vec!["hello".to_string()],
+            quotes: vec![],
+        };
+
+        let data = provider.get_n_random_words(3);
+
+        assert_eq!(data.text, "hello hello hello");
+        assert_eq!(data.source, "3 words");
+    }
+
+    #[test]
+    fn get_n_random_words_with_zero_count_returns_empty_text() {
+        let provider = DataProvider {
+            words: vec!["hello".to_string()],
+            quotes: vec![],
+        };
+
+        let data = provider.get_n_random_words(0);
+
+        assert_eq!(data.text, "");
+        assert_eq!(data.source, "0 words");
+    }
+
+    #[test]
+    fn get_random_quote_returns_fallback_when_quotes_are_empty() {
+        let provider = DataProvider {
+            words: vec![],
+            quotes: vec![],
+        };
+
+        let data = provider.get_random_quote();
+
+        assert_eq!(data.text, "No quotes available");
+        assert_eq!(data.source, "no quotes available");
+    }
+
+    #[test]
+    fn get_data_from_time_mode_uses_word_count_and_seconds_source() {
+        let provider = DataProvider {
+            words: vec!["hello".to_string()],
+            quotes: vec![],
+        };
+
+        let data = provider.get_data_from_mode(&Mode::Time(2));
+
+        assert_eq!(data.text, "hello hello hello hello hello hello hello hello");
+        assert_eq!(data.source, "2 seconds");
+    }
+
+    #[test]
+    fn get_words_reads_custom_json_file() {
+        let path = write_temp_file("words", r#"["alpha","beta"]"#);
+
+        let words = get_words(Some(path.clone())).unwrap();
+
+        assert_eq!(words, vec!["alpha".to_string(), "beta".to_string()]);
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn get_words_returns_error_for_invalid_json() {
+        let path = write_temp_file("invalid_words", r#"{"not":"an array"}"#);
+
+        let result = get_words(Some(path.clone()));
+
+        assert!(result.is_err(), "invalid word JSON should fail to parse");
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn get_quotes_filters_empty_and_source_matching_entries() {
+        let path = write_temp_file(
+            "quotes",
+            r#"{
+                "Author A": ["Author A", "", "Keep going"],
+                "Author B": ["Stay focused"]
+            }"#,
+        );
+
+        let mut quotes = get_quotes(Some(path.clone())).unwrap();
+        quotes.sort_by(|a, b| a.source.cmp(&b.source).then(a.text.cmp(&b.text)));
+
+        assert_eq!(quotes.len(), 2);
+        assert_eq!(quotes[0].source, "Author A");
+        assert_eq!(quotes[0].text, "Keep going");
+        assert_eq!(quotes[1].source, "Author B");
+        assert_eq!(quotes[1].text, "Stay focused");
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_data_from_time_mode_panics_on_overflow() {
+        let provider = DataProvider {
+            words: vec!["hello".to_string()],
+            quotes: vec![],
+        };
+
+        let _ = provider.get_data_from_mode(&Mode::Time(usize::MAX));
+    }
+}
