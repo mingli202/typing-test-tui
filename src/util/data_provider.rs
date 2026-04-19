@@ -48,7 +48,13 @@ impl DataProvider {
 
     pub fn get_random_quote(&self) -> Data {
         let mut rng = rand::rng();
-        self.quotes.choose(&mut rng).unwrap().clone()
+        self.quotes.choose(&mut rng).map_or_else(
+            || Data {
+                text: "No quotes available".to_string(),
+                source: "no quotes available".to_string(),
+            },
+            |data| data.clone(),
+        )
     }
 
     pub fn get_n_random_words(&self, n: usize) -> Data {
