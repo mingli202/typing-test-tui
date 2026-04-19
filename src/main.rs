@@ -19,7 +19,9 @@ async fn main() -> color_eyre::Result<()> {
         run(&mut term, args).await
     };
 
-    teardown_terminal()?;
+    if let Err(e) = teardown_terminal() {
+        eprintln!("Error tearing down terminal: {}", e);
+    }
 
     if let Err(e) = res {
         eprintln!("Error while running tui: {}", e);
