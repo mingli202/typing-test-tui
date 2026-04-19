@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 use ratatui::widgets::Widget;
 
-use crate::selection::{Selection, SelectionItem};
-use crate::state::Mode;
+use crate::model::Mode;
+use crate::util::selection::{self, Selection, SelectionItem};
 
 #[derive(PartialEq, Clone)]
 pub enum ModeSelectionOption {
@@ -100,13 +102,8 @@ impl ModeSelection {
     }
 }
 
-impl Widget for &ModeSelection {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        let paragraph = self.selection.get_widget().centered();
-
-        paragraph.render(area, buf);
-    }
+/// Render the given mode selection
+pub fn view_mode_selection(mode_selection: &ModeSelection, area: Rect, buf: &mut Buffer) {
+    let paragraph = selection::get_widget(&mode_selection.selection).centered();
+    paragraph.render(area, buf);
 }

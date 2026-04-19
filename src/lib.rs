@@ -1,128 +1,100 @@
 use std::time::Duration;
 
-use ratatui::crossterm::event::{self, KeyCode};
-use ratatui::layout::Rect;
-use ratatui::macros::text;
-use ratatui::style::{Color, Stylize};
-use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
-use ratatui::{DefaultTerminal, Frame};
-use tokio::sync::mpsc::UnboundedSender;
+use crossterm::event::{Event, EventStream, KeyEvent, KeyEventKind};
+use futures::{FutureExt, StreamExt};
+use ratatui::DefaultTerminal;
+use tokio::select;
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::time::interval;
 
-use self::config::{Config, ConfigUpdate};
-use self::state::{Action, State};
-use self::toast::{Toast, ToastMessage};
+use self::action::Action;
+use self::args::Args;
+use self::model::{AppModel, handle_action, update, view};
+use self::msg::Msg;
+use self::util::toast::ToastAction;
 
-pub mod config;
-pub mod data;
-mod selection;
-mod state;
-pub mod toast;
-mod typing_test;
+pub mod action;
+pub mod args;
+mod endscreen;
+mod model;
+mod msg;
+mod typing;
+mod util;
 
-pub struct App {
-    state: State,
-    exit: bool,
-    config_tx: UnboundedSender<ConfigUpdate>,
-    toast: Toast,
+pub enum CustomEvent {
+    Quit,
+    Tick,
+    Render,
+    Key(KeyEvent),
+    ToastAction(ToastAction),
 }
 
-impl App {
-    pub async fn new(tx: UnboundedSender<ConfigUpdate>, toast: Toast) -> Self {
-        let config = match Config::load().await {
-            Ok(config) => config,
-            Err(e) => {
-                let _ = toast.send(ToastMessage::warning(e));
-                Config::default()
-            }
+pub async fn run(terminal: &mut DefaultTerminal, args: Args) -> color_eyre::Result<()> {
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+    init_event_loop(event_tx.clone(), args.fps, args.tps);
+
+    let mut app_model = AppModel::new(event_tx, args.words_path, args.quotes_path).await?;
+
+    while !app_model.exit {
+        let mut maybe_action: Option<Action> = tokio::select! {
+            Some(custom_event) = event_rx.recv() => {
+                match custom_event {
+                    CustomEvent::Quit => Some(Action::Quit),
+                    CustomEvent::Tick => update(&mut app_model, Msg::Tick),
+                    CustomEvent::Render => {
+                        terminal.draw(|frame| view(&app_model, frame))?;
+                        None
+                    }
+                    CustomEvent::Key(key) => update(&mut app_model, Msg::Key(key)),
+                    CustomEvent::ToastAction(action) => update(&mut app_model, Msg::ToastAction(action)),
+                }
+
+            },
         };
 
-        App {
-            state: State::new(config.mode),
-            exit: false,
-            config_tx: tx,
-            toast,
+        while let Some(action) = maybe_action {
+            maybe_action = handle_action(&mut app_model, action);
         }
     }
 
-    pub fn run(mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
-            self.handle_toast_action();
-        }
-        Ok(())
-    }
+    Ok(())
+}
 
-    fn draw(&self, frame: &mut Frame) {
-        let area = frame.area();
-        frame.render_widget(&self.state, area);
-        self.draw_toast(frame);
-    }
+fn init_event_loop(event_tx: UnboundedSender<CustomEvent>, fps: usize, tps: usize) {
+    tokio::spawn(async move {
+        let render_duration_secs = 1.0 / fps as f64;
+        let tick_duration_secs = 1.0 / tps as f64;
 
-    /// Draw the list of toasts on top of everything
-    fn draw_toast(&self, frame: &mut Frame) {
-        let area = frame.area();
-        let mut single_toast_area = Rect::new(0, 0, 30, 0);
+        let mut tick_interval = interval(Duration::from_secs_f64(tick_duration_secs));
+        let mut render_interval = interval(Duration::from_secs_f64(render_duration_secs));
 
-        single_toast_area.x = area.width - single_toast_area.width;
+        let mut event_stream = EventStream::new();
 
-        for message in &self.toast.messages {
-            let paragraph =
-                Paragraph::new(text![message.msg.clone()].fg(Color::White).bg(Color::Black))
-                    .black()
-                    .wrap(Wrap { trim: true })
-                    .block(
-                        Block::bordered()
-                            .border_style(message.level.style())
-                            .border_type(BorderType::Rounded),
-                    );
+        loop {
+            select! {
+                _ = tick_interval.tick() => {
+                    let _ = event_tx.send(CustomEvent::Tick);
+                }
+                _ = render_interval.tick() => {
+                    let _ = event_tx.send(CustomEvent::Render);
+                }
+                maybe_event = event_stream.next().fuse() => {
+                    let custom_event = match maybe_event {
+                        Some(Ok(e)) => {
+                            match e {
+                                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => CustomEvent::Key(key_event),
+                                _ => continue,
+                            }
+                        }
+                        Some(Err(_)) => continue,
+                        None => break,
+                    };
 
-            // calculate height after wrap
-            // -2 because it seems it doesn't handle the border
-            let line_count = paragraph.line_count(single_toast_area.width - 2);
-            single_toast_area.height = line_count as u16;
-
-            frame.render_widget(paragraph, single_toast_area);
-
-            // update y for the next area
-            single_toast_area.y += line_count as u16;
-        }
-    }
-
-    fn handle_events(&mut self) -> color_eyre::Result<()> {
-        if event::poll(Duration::from_millis(250))?
-            && let Ok(event) = event::read()
-        {
-            if let Some(event::KeyEvent {
-                code: KeyCode::Esc, ..
-            }) = event.as_key_press_event()
-            {
-                self.exit = true
-            }
-
-            let transition = self.state.handle_events(event);
-            self.handle_transition(transition);
-        }
-
-        let transition = self.state.on_tick();
-        self.handle_transition(transition);
-
-        Ok(())
-    }
-
-    fn handle_transition(&mut self, transition: Action) {
-        match transition {
-            Action::Quit => self.exit = true,
-            Action::None => (),
-            Action::UpdateMode(mode) => {
-                let _ = self.config_tx.send(ConfigUpdate::Mode(mode));
+                    if event_tx.send(custom_event).is_err() {
+                        break;
+                    }
+                }
             }
         }
-    }
-
-    fn handle_toast_action(&mut self) {
-        while let Ok(action) = self.toast.action_rx.try_recv() {
-            self.toast.handle_action(action);
-        }
-    }
+    });
 }

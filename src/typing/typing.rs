@@ -7,12 +7,8 @@ use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Widget};
 
-use self::letter::{Letter, TypedState};
-use self::word::Word;
-
-mod letter;
-pub mod mode_selection;
-mod word;
+use super::letter::{Letter, TypedState};
+use super::word::Word;
 
 /// Represents a single typing test
 pub struct TypingTest {
@@ -34,6 +30,12 @@ pub struct TypingTest {
 
     /// When the test as ended
     time_ended: Option<Instant>,
+
+    /// Number of wrong words up to the current typed word (exclusively)
+    n_wrongs: usize,
+
+    /// Number of letters typed. Does not include untyped letters or extra letters
+    n_letters_typed: usize,
 }
 
 impl TypingTest {
@@ -47,6 +49,8 @@ impl TypingTest {
             time_started: None,
             time_ended: None,
             words,
+            n_wrongs: 0,
+            n_letters_typed: 0,
         }
     }
 
@@ -74,6 +78,8 @@ impl TypingTest {
             } else {
                 let curr_letter = curr_word.get_letter_mut(self.letter_index).unwrap();
                 curr_letter.typed_state = TypedState::Typed(c);
+
+                self.n_letters_typed += 1;
             }
 
             let is_last_word_error = curr_word.is_error();
@@ -97,22 +103,13 @@ impl TypingTest {
     /// Gets the numbers of wrong words up to the current word the user is typing
     /// Do not include the word that's being typed
     pub fn n_wrongs(&self) -> usize {
-        self.words
-            .iter()
-            .take(self.word_index)
-            .filter(|word| word.is_error())
-            .count()
+        self.n_wrongs
     }
 
     /// Total number of letters typed excluding extras up to the currently typed word
     /// Include the word that's being typed
     pub fn letters_typed(&self) -> usize {
-        self.words
-            .iter()
-            .take(self.word_index + 1)
-            .map(|word| word.n_letters_typed())
-            .sum::<usize>()
-            + self.word_index // for spaces
+        self.n_letters_typed
     }
 
     /// Starts the typing test timer if it hasn't been started
@@ -164,18 +161,29 @@ impl TypingTest {
 
             self.word_index -= 1;
             self.letter_index = self.words[self.word_index].last_typed_letter_index;
+
+            if let Some(word) = self.get_curr_word()
+                && word.is_error()
+            {
+                self.n_wrongs -= 1;
+            }
+
+            // decrement the space character that completed the previous word
+            self.n_letters_typed -= 1;
         } else {
             self.letter_index -= 1;
         }
 
-        let is_overshoot = self.letter_index >= self.words[self.word_index].actual_len();
         if let Some(letter) = self.get_curr_letter_mut() {
-            if is_overshoot {
-                if let Some(word) = self.get_curr_word_mut() {
-                    word.pop();
+            match letter.typed_state {
+                TypedState::Typed(_) => {
+                    letter.typed_state = TypedState::NotTyped;
+                    self.n_letters_typed -= 1;
                 }
-            } else {
-                letter.typed_state = TypedState::NotTyped;
+                TypedState::Extra => {
+                    self.get_curr_word_mut().and_then(|word| word.pop());
+                }
+                TypedState::NotTyped => (),
             }
         }
     }
@@ -208,6 +216,10 @@ impl TypingTest {
         let total_correct_letters = self.total_correct_letters_typed();
         let total_letters = self.total_letters();
 
+        if total_letters == 0 {
+            return 0;
+        }
+
         100 * total_correct_letters / total_letters
     }
 
@@ -225,6 +237,10 @@ impl TypingTest {
         let curr_word = &mut self.words[self.word_index];
         curr_word.last_typed_letter_index = self.letter_index;
 
+        if curr_word.is_error() {
+            self.n_wrongs += 1;
+        }
+
         let is_last_word = self.word_index >= len - 1;
 
         if is_last_word {
@@ -233,6 +249,7 @@ impl TypingTest {
 
         self.word_index += 1;
         self.letter_index = 0;
+        self.n_letters_typed += 1;
 
         false
     }
@@ -280,54 +297,6 @@ impl TypingTest {
                 .get(self.word_index)
                 .map_or(0, |word| usize::min(word.actual_len(), self.letter_index))
     }
-
-    /// Returns text representation and cursorline index
-    fn split_into_lines(&self, max_width: usize) -> (Text<'_>, usize) {
-        let mut lines: Vec<Line> = vec![];
-        let mut current_line: Line = line![];
-        let mut cursor_index = 0;
-
-        self.words.iter().enumerate().for_each(|(i, word)| {
-            let mut letters = word
-                .letters
-                .iter()
-                .map(|letter| letter.to_span())
-                .collect_vec();
-
-            // add space
-            letters.push(Span::raw(" "));
-
-            // draw cursor
-            if self.word_index == i {
-                if let Some(letter) = letters.get_mut(self.letter_index) {
-                    *letter = letter.clone().fg(Color::Black).bg(Color::White);
-                }
-
-                cursor_index = lines.len();
-            }
-
-            let line = Line::from(letters);
-            let width_so_far = current_line.width();
-
-            let is_overflow = width_so_far + line.width() >= max_width;
-            if is_overflow {
-                lines.push(current_line.clone());
-                current_line = line;
-
-                if self.word_index == i {
-                    cursor_index += 1;
-                }
-            } else {
-                current_line
-                    .spans
-                    .append(&mut line.into_iter().collect_vec());
-            }
-        });
-
-        lines.push(current_line);
-
-        (Text::from(lines), cursor_index)
-    }
 }
 
 impl Display for TypingTest {
@@ -340,21 +309,68 @@ impl Display for TypingTest {
     }
 }
 
-impl Widget for &TypingTest {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        let (text, cursor_index) = self.split_into_lines(area.width as usize);
+/// Returns text representation and cursorline index
+fn split_into_lines(typing_test: &TypingTest, max_width: usize) -> (Text<'_>, usize) {
+    let mut lines: Vec<Line> = vec![];
+    let mut current_line: Line = line![];
+    let mut cursor_index = 0;
 
-        let offset = if cursor_index == 0 {
-            0
+    for (i, word) in typing_test.words.iter().enumerate() {
+        let mut letters = word
+            .letters
+            .iter()
+            .map(|letter| letter.to_span())
+            .collect_vec();
+
+        // add space
+        letters.push(Span::raw(" "));
+
+        // draw cursor
+        if typing_test.word_index == i {
+            if let Some(letter) = letters.get_mut(typing_test.letter_index) {
+                *letter = letter.clone().fg(Color::Black).bg(Color::White);
+            }
+
+            cursor_index = lines.len();
+        }
+
+        let line = Line::from(letters);
+        let width_so_far = current_line.width();
+
+        let is_overflow = width_so_far + line.width() >= max_width;
+        if is_overflow {
+            lines.push(current_line.clone());
+            current_line = line;
+
+            if typing_test.word_index == i {
+                cursor_index += 1;
+            }
         } else {
-            cursor_index as u16 - 1
-        };
-
-        Paragraph::new(text).scroll((offset, 0)).render(area, buf);
+            current_line
+                .spans
+                .append(&mut line.into_iter().collect_vec());
+        }
     }
+
+    lines.push(current_line);
+
+    (Text::from(lines), cursor_index)
+}
+
+pub fn view_typing_test(
+    typing_test: &TypingTest,
+    area: ratatui::prelude::Rect,
+    buf: &mut ratatui::prelude::Buffer,
+) {
+    let (text, cursor_index) = split_into_lines(typing_test, area.width as usize);
+
+    let offset = if cursor_index == 0 {
+        0
+    } else {
+        cursor_index as u16 - 1
+    };
+
+    Paragraph::new(text).scroll((offset, 0)).render(area, buf);
 }
 
 #[cfg(test)]
@@ -607,6 +623,65 @@ mod typing_test_test {
     }
 
     #[test]
+    fn n_wrongs2() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel worlddd ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 2);
+    }
+
+    #[test]
+    fn n_wrongs_with_backspace() {
+        let mut test = TypingTest::new("Hello world!");
+
+        "Hel ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 1, "should have an error");
+
+        test.on_backspace();
+
+        assert_eq!(test.n_wrongs(), 0, "should have removed the error");
+
+        "lo ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(test.n_wrongs(), 0);
+    }
+
+    #[test]
+    fn n_wrongs_with_backspace2() {
+        let mut test = TypingTest::new("Hello world! this is peak");
+
+        "Hel world! thasdf is ewa".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.n_wrongs(),
+            2,
+            "should have 2 errors. current word should not be part of errors"
+        );
+
+        for _ in 0..7 {
+            test.on_backspace();
+        }
+
+        assert_eq!(test.n_wrongs(), 1, "should have removed an error");
+
+        for _ in 0..8 {
+            test.on_backspace();
+        }
+
+        assert_eq!(test.n_wrongs(), 1);
+    }
+
+    #[test]
     fn total_letters_typed() {
         let mut test = TypingTest::new("Hello world!");
 
@@ -720,5 +795,81 @@ mod typing_test_test {
             .map(|time_started| time_started + Duration::from_secs(10));
 
         assert_eq!(test.elapsed_since_start_sec().unwrap().as_secs(), 10);
+    }
+
+    #[test]
+    fn letters_typed() {
+        let mut test = TypingTest::new("Hello World!");
+
+        "Hel Worlasdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.letters_typed(),
+            10,
+            "should not count untyped letters or extra letters"
+        )
+    }
+
+    #[test]
+    fn letters_typed_and_backspace() {
+        let mut test = TypingTest::new("Hello World!");
+
+        "Hel Worlasdf".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        for _ in 0..3 {
+            test.on_backspace();
+        }
+
+        assert_eq!(
+            test.letters_typed(),
+            9,
+            "should not count untyped letters or extra letters"
+        );
+
+        for _ in 0..5 {
+            test.on_backspace();
+        }
+
+        assert_eq!(
+            test.letters_typed(),
+            4,
+            "should not count untyped letters or extra letters"
+        );
+
+        test.on_backspace();
+        test.on_backspace();
+
+        assert_eq!(
+            test.letters_typed(),
+            2,
+            "should not count untyped letters or extra letters"
+        );
+    }
+
+    #[test]
+    fn letters_typed_and_backspace_2() {
+        let mut test = TypingTest::new("Hello World!");
+
+        "Hello ".chars().for_each(|c| {
+            test.on_type(c);
+        });
+
+        assert_eq!(
+            test.letters_typed(),
+            6,
+            "should not count untyped letters or extra letters"
+        );
+
+        test.on_backspace();
+
+        assert_eq!(
+            test.letters_typed(),
+            5,
+            "should not count untyped letters or extra letters"
+        );
     }
 }

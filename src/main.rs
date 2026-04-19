@@ -1,36 +1,48 @@
-use tokio::sync::mpsc;
-use typing_test_tui::App;
-use typing_test_tui::config::Config;
-use typing_test_tui::toast::Toast;
+use std::io::{self, Stdout};
 
 use clap::Parser;
-
-// TODO: --offline mode uses my own data
-#[derive(Parser, Debug)]
-#[command(version, about)]
-pub struct Args {}
+use crossterm::cursor;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::Terminal;
+use ratatui::prelude::CrosstermBackend;
+use typing_test_tui::args::Args;
+use typing_test_tui::run;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    let _ = Args::parse();
+    let args = Args::parse();
 
-    let (config_tx, config_rx) = mpsc::unbounded_channel();
-    let (toast_tx, toast_rx) = mpsc::unbounded_channel();
+    let res = {
+        let mut term = setup_terminal()?;
+        run(&mut term, args).await
+    };
 
-    let toast = Toast::new(toast_tx.clone());
-    let toast_handle = toast.init(toast_rx);
-
-    let config_handle = Config::init(config_rx, toast_tx);
-
-    {
-        let app = App::new(config_tx, toast).await;
-        ratatui::run(|terminal| app.run(terminal))?;
+    if let Err(e) = teardown_terminal() {
+        eprintln!("Error tearing down terminal: {}", e);
     }
 
-    toast_handle.await?;
-    config_handle.await?;
+    if let Err(ref e) = res {
+        eprintln!("Error while running tui: {}", e);
+    }
 
+    res
+}
+
+fn setup_terminal() -> color_eyre::Result<Terminal<CrosstermBackend<Stdout>>> {
+    let mut stdout = io::stdout();
+    crossterm::terminal::enable_raw_mode()?;
+    crossterm::execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+
+    let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
+
+    Ok(terminal)
+}
+
+fn teardown_terminal() -> color_eyre::Result<()> {
+    let mut stdout = io::stdout();
+    crossterm::terminal::disable_raw_mode()?;
+    crossterm::execute!(stdout, LeaveAlternateScreen, cursor::Show)?;
     Ok(())
 }

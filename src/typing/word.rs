@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::typing_test::letter::TypedState;
+use crate::typing::letter::TypedState;
 
 use super::letter::Letter;
 

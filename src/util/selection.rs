@@ -175,37 +175,6 @@ impl<T> Selection<T> {
         }
     }
 
-    /// Return the selection as a renderable paragraph
-    pub fn get_widget(&self) -> Paragraph<'_>
-    where
-        T: Display,
-    {
-        let mut root = &self.root;
-        let mut t = text![];
-
-        let selected_path_len = self.selected_path.len();
-
-        for (path_index, child_index) in self.selected_path.iter().enumerate() {
-            let line = Self::get_children_row(
-                &root.children,
-                Some(*child_index),
-                Some(path_index),
-                selected_path_len,
-            );
-
-            t.push_line(line);
-
-            if let Some(child) = root.children.get(*child_index) {
-                root = child;
-            }
-        }
-
-        let line = Self::get_children_row(&root.children, None, None, selected_path_len);
-        t.push_line(line);
-
-        Paragraph::new(t)
-    }
-
     /// Gets immutable reference to currently selected selection item
     fn get_selected_selection_item(&self) -> Option<&SelectionItem<T>> {
         let mut selected = &self.root;
@@ -259,38 +228,65 @@ impl<T> Selection<T> {
 
         Some(parent)
     }
+}
 
-    /// Gets a renderable line of selection item
-    fn get_children_row(
-        children: &[SelectionItem<T>],
-        child_index: Option<usize>,
-        path_index: Option<usize>,
-        selected_path_len: usize,
-    ) -> Line<'_>
-    where
-        T: Display,
-    {
-        let row = children.iter().enumerate().map(|(i, selection_item)| {
-            selection_item.item.as_ref().map_or(span!(""), |item| {
-                let span = Span::from(item.to_string())
-                    .fg(Color::White)
-                    .bg(Color::Black);
+pub fn get_widget<T: Display>(selection: &Selection<T>) -> Paragraph<'_> {
+    let mut root = &selection.root;
+    let mut t = text![];
 
-                if child_index == Some(i) {
-                    if path_index == Some(selected_path_len - 1) {
-                        highlight_white(span)
-                    } else {
-                        highlight_gray(span)
-                    }
-                } else {
-                    span
-                }
-            })
-        });
+    let selected_path_len = selection.selected_path.len();
 
-        let row = itertools::intersperse(row, span!(" ")).collect::<Vec<Span>>();
-        Line::from(row)
+    for (path_index, child_index) in selection.selected_path.iter().enumerate() {
+        let line = get_children_row(
+            &root.children,
+            Some(*child_index),
+            Some(path_index),
+            selected_path_len,
+        );
+
+        t.push_line(line);
+
+        if let Some(child) = root.children.get(*child_index) {
+            root = child;
+        }
     }
+
+    let line = get_children_row(&root.children, None, None, selected_path_len);
+    t.push_line(line);
+
+    Paragraph::new(t)
+}
+
+/// Gets a renderable line of selection item
+fn get_children_row<T>(
+    children: &[SelectionItem<T>],
+    child_index: Option<usize>,
+    path_index: Option<usize>,
+    selected_path_len: usize,
+) -> Line<'_>
+where
+    T: Display,
+{
+    let row = children.iter().enumerate().map(|(i, selection_item)| {
+        selection_item.item.as_ref().map_or(span!(""), |item| {
+            let span = Span::from(item.to_string())
+                .fg(Color::White)
+                .bg(Color::Black);
+
+            if child_index == Some(i) {
+                if path_index == Some(selected_path_len - 1) {
+                    highlight_white(span)
+                } else {
+                    highlight_gray(span)
+                }
+            } else {
+                span
+            }
+        })
+    });
+
+    let row = itertools::intersperse(row, span!(" ")).collect::<Vec<Span>>();
+    Line::from(row)
 }
 
 fn highlight_white(text: Span) -> Span {
