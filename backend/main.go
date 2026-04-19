@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 )
 
@@ -14,8 +16,25 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Ready!")
+		ctx := r.Context()
+		fmt.Fprintf(w, "Ready at %v!\n", ctx.Value("serverAddr"))
 	})
 
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	ctx, cancelCtx := context.WithCancel(context.Background())
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+		BaseContext: func(l net.Listener) context.Context {
+			ctx = context.WithValue(ctx, "serverAddr", l.Addr().String())
+			return ctx
+		},
+	}
+
+	go func() {
+		log.Fatal(server.ListenAndServe())
+		cancelCtx()
+	}()
+
+	<-ctx.Done()
 }
