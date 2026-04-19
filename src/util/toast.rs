@@ -7,6 +7,7 @@ use ratatui::macros::text;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, BorderType, Paragraph, Widget, Wrap};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use crate::CustomEvent;
@@ -77,8 +78,8 @@ impl ToastMessage {
 }
 
 pub struct Toast {
-    /// The array of messages
-    pub messages: VecDeque<ToastMessage>,
+    /// The array of messages and their associated timeout task handles
+    pub messages: VecDeque<(ToastMessage, JoinHandle<()>)>,
 
     /// Sender of a ToastMessage
     event_tx: UnboundedSender<CustomEvent>,
@@ -111,18 +112,21 @@ impl Toast {
     pub fn handle_action(&mut self, action: ToastAction) {
         match action {
             ToastAction::Push(msg) => {
-                self.messages.push_front(msg);
+                let event_tx = self.event_tx.clone();
+                let handle = tokio::spawn(async move {
+                    sleep(Duration::from_secs(3)).await;
+                    let _ = event_tx.send(CustomEvent::ToastAction(ToastAction::Pop));
+                });
+
+                self.messages.push_front((msg, handle));
 
                 // cap toast length if it ever gets spammed
                 // 20 is an arbritary number
                 if self.messages.len() > 20 {
-                    self.messages.pop_back();
+                    if let Some((_, handle)) = self.messages.pop_back() {
+                        handle.abort();
+                    }
                 }
-                let event_tx = self.event_tx.clone();
-                tokio::spawn(async move {
-                    sleep(Duration::from_secs(3)).await;
-                    let _ = event_tx.send(CustomEvent::ToastAction(ToastAction::Pop));
-                });
             }
             ToastAction::Pop => {
                 self.messages.pop_back();
@@ -144,7 +148,7 @@ pub fn view(toast: &Toast, area: Rect, buf: &mut Buffer) {
 
     single_toast_area.x = area.width.saturating_sub(single_toast_area.width);
 
-    for message in messages {
+    for (message, _) in messages {
         let paragraph =
             Paragraph::new(text![message.msg.clone()].fg(Color::White).bg(Color::Black))
                 .black()
@@ -226,17 +230,18 @@ mod test {
 
         {
             let lock = toast.lock().await;
+            let messages: Vec<&ToastMessage> = lock.messages.iter().map(|(msg, _)| msg).collect();
             assert_eq!(
-                lock.messages,
-                VecDeque::from([
-                    ToastMessage::error("Fourth".to_string()),
-                    ToastMessage::success("Third".to_string()),
-                    ToastMessage::warning("Second".to_string()),
-                    ToastMessage {
+                messages,
+                vec![
+                    &ToastMessage::error("Fourth".to_string()),
+                    &ToastMessage::success("Third".to_string()),
+                    &ToastMessage::warning("Second".to_string()),
+                    &ToastMessage {
                         level: ToastLevel::Info,
                         msg: "First".to_string()
                     },
-                ])
+                ]
             );
         }
 
@@ -244,13 +249,14 @@ mod test {
 
         {
             let lock = toast.lock().await;
+            let messages: Vec<&ToastMessage> = lock.messages.iter().map(|(msg, _)| msg).collect();
             assert_eq!(
-                lock.messages,
-                VecDeque::from([
-                    ToastMessage::error("Fourth".to_string()),
-                    ToastMessage::success("Third".to_string()),
-                    ToastMessage::warning("Second".to_string()),
-                ])
+                messages,
+                vec![
+                    &ToastMessage::error("Fourth".to_string()),
+                    &ToastMessage::success("Third".to_string()),
+                    &ToastMessage::warning("Second".to_string()),
+                ]
             );
         }
 
