@@ -27,3 +27,19 @@ func TestNewProvider(t *testing.T) {
 		t.Errorf("Expected %v; got %v", repo_first, first_data)
 	}
 }
+
+func TestNewQuote(t *testing.T) {
+	data_provider, err := NewDataProvider()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	data, err := data_provider.NewData()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(data)
+}
