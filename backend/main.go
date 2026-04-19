@@ -8,9 +8,7 @@ import (
 	"net/http"
 )
 
-type GameHandler struct{}
-
-func (GameHandler) ServeHTTP(http.ResponseWriter, *http.Request) {}
+const port = 8080
 
 func main() {
 	mux := http.NewServeMux()
@@ -23,7 +21,7 @@ func main() {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%v", port),
 		Handler: mux,
 		BaseContext: func(l net.Listener) context.Context {
 			ctx = context.WithValue(ctx, "serverAddr", l.Addr().String())
@@ -32,8 +30,13 @@ func main() {
 	}
 
 	go func() {
-		log.Fatal(server.ListenAndServe())
-		cancelCtx()
+		defer cancelCtx()
+		log.Printf("Starting server on port %v\n", port)
+		err := server.ListenAndServe()
+
+		if err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	<-ctx.Done()
