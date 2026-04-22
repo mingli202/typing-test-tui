@@ -49,3 +49,41 @@ func TestRemoveUser(t *testing.T) {
 		t.Errorf("Should have remove an user")
 	}
 }
+
+func TestNewGroup(t *testing.T) {
+	hub := NewHub()
+
+	user := hub.NewUser(nil)
+
+	groupId := hub.NewGroup(user)
+
+	if len(hub.groups) != 1 {
+		t.Errorf("Should have added a group")
+	}
+
+	group, ok := hub.groups[groupId]
+
+	if !ok {
+		t.Errorf("Why has the group not been added")
+	}
+
+	if len(group.users) != 1 {
+		t.Errorf("User not been added")
+	}
+
+	groupId = hub.NewGroup(user)
+
+	if len(hub.groups) != 1 {
+		t.Errorf("Should have added a new group but old group is gone")
+	}
+
+	group2 := hub.groups[groupId]
+
+	if group2.id == group.id {
+		t.Errorf("Impossible same group id")
+	}
+
+	if len(group2.users) != 1 {
+		t.Errorf("User should have been added to the new group")
+	}
+}
