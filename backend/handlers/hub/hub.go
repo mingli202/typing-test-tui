@@ -40,9 +40,12 @@ func (group *Group) AddUser(user *User) {
 }
 
 // Removes the given user to this group
-func (group *Group) RemoveUser(user *User) {
+// Returns whether this group is empty
+func (group *Group) RemoveUser(user *User) bool {
 	delete(group.users, user.id)
 	user.groupId = nil
+
+	return len(group.users) == 0
 }
 
 type Hub struct {
@@ -91,12 +94,9 @@ func (hub *Hub) RemoveUser(user *User) {
 	delete(hub.users, user.id)
 }
 
-// Makes a new group with the given conn
-// Returns the newly created group id
-func (hub *Hub) NewGroup(user *User) string {
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-
+// Returns a new unique group Id
+// Assumes the lock is already acquired
+func (hub *Hub) newGroupId() string {
 	id := newGroupId()
 	_, ok := hub.groups[id]
 
@@ -105,43 +105,78 @@ func (hub *Hub) NewGroup(user *User) string {
 		_, ok = hub.groups[id]
 	}
 
+	return id
+}
+
+// Makes a new group and adds the given user to it
+// Returns the newly created group id
+func (hub *Hub) NewGroup(user *User) string {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+
+	id := hub.newGroupId()
 	group := NewGroup(id)
 	hub.groups[group.id] = group
 
-	group.AddUser(user)
+	hub.join(group.id, user)
 
 	return id
 }
 
 // Appends the given conn to the group with the given id
+// If the user is already in a group, they will be removed from it
 // Return whether the conn was added to the group
 func (hub *Hub) Join(groupId string, user *User) bool {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
+	return hub.join(groupId, user)
+}
+
+// Helper method for Join.
+// Assumes the lock is already acquired
+func (hub *Hub) join(groupId string, user *User) bool {
 	group, ok := hub.groups[groupId]
 
 	if ok {
-		group.RemoveUser(user)
+		if user.groupId != nil {
+			hub.exit(*user.groupId, user)
+		}
+
 		group.AddUser(user)
 	}
 
 	return ok
 }
 
-// Removes the given conn from the group with the given id
+// Removes the given user from the repository (e.g. when the user disconnects)
 // Returns whether the remove was successful or not
-func (hub *Hub) Exit(id string, user *User) bool {
+func (hub *Hub) Exit(user *User) bool {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
-	group, ok := hub.groups[id]
+	delete(hub.users, user.id)
 
-	if ok {
-		group.RemoveUser(user)
+	return hub.exit(user)
+}
+
+// Helper method for Exit
+// Assumes the mutex is already locked
+// Returns whether the remove was successful or not
+func (hub *Hub) exit(user *User) bool {
+	if user.groupId != nil {
+		id := *user.groupId
+
+		group, ok := hub.groups[id]
+
+		if ok {
+			group.RemoveUser(user)
+		}
+
+		return ok
 	}
 
-	return ok
+	return false
 }
 
 // Handles websocket message
