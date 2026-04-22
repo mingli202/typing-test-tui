@@ -37,3 +37,15 @@ func TestNewUser(t *testing.T) {
 		t.Errorf("User should not belong in any group for now")
 	}
 }
+
+func TestRemoveUser(t *testing.T) {
+	hub := NewHub()
+
+	user1 := hub.NewUser(nil)
+
+	hub.RemoveUser(user1)
+
+	if len(hub.users) != 0 {
+		t.Errorf("Should have remove an user")
+	}
+}
