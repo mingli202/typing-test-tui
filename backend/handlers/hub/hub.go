@@ -51,7 +51,8 @@ type Hub struct {
 	users  map[string]User
 }
 
-func NewHub() Hub {
+// Makes a new hub
+func New() Hub {
 	return Hub{
 		groups: make(map[string]Group),
 		users:  make(map[string]User),

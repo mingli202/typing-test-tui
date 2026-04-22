@@ -21,7 +21,7 @@ func TestNewGroupId(t *testing.T) {
 }
 
 func TestNewUser(t *testing.T) {
-	hub := Hub{}
+	hub := New()
 
 	user1 := hub.NewUser(nil)
 
