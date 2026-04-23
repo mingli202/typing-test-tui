@@ -3,6 +3,7 @@ package hub
 import (
 	"fmt"
 	"log"
+	"maps"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
@@ -17,27 +18,33 @@ import (
 var upgrader = websocket.Upgrader{}
 
 type User struct {
-	conn    *websocket.Conn
-	id      string
-	groupId *string
+	conn       *websocket.Conn
+	id         string
+	groupId    *string
+	totalWpm   float64
+	gamePlayed int
+}
+
+func (user *User) avgWpm() float64 {
+	return user.totalWpm / float64(user.gamePlayed)
 }
 
 type Group struct {
 	id    string
-	users map[string]bool
+	users map[string]*User
 }
 
 // Makes a new group with the given id
 func newGroup(id string) Group {
 	return Group{
 		id:    id,
-		users: make(map[string]bool),
+		users: make(map[string]*User),
 	}
 }
 
 // Adds the given user to this group
 func (group *Group) addUser(user *User) {
-	group.users[user.id] = true
+	group.users[user.id] = user
 	user.groupId = &group.id
 }
 
@@ -48,6 +55,26 @@ func (group *Group) removeUser(user *User) bool {
 	user.groupId = nil
 
 	return len(group.users) == 0
+}
+
+// avgWpm gets the average wpm of this group
+// Used to match users in relatively equal brackets
+func (group *Group) avgWpm() float64 {
+	totalWpm := 0.0
+	n := 0
+
+	for user := range maps.Values(group.users) {
+		if user != nil {
+			totalWpm += user.avgWpm()
+			n += 1
+		}
+	}
+
+	if n == 0 {
+		return 0.0
+	}
+
+	return totalWpm / float64(n)
 }
 
 type Hub struct {
@@ -192,6 +219,9 @@ func (hub *Hub) leave(user *User) bool {
 	return false
 }
 
+// Handles random matchmaking
+func (hub *Hub) handleMatch(user *User) {}
+
 /*
 Handles websocket message.
 Expects shape to be <Function> <Payload>.
@@ -231,6 +261,8 @@ func (hub *Hub) handleMessage(p []byte, user *User) (string, error) {
 	case "LeaveGroup":
 		success := hub.handleLeave(user)
 		return strconv.FormatBool(success), nil
+	case "Match":
+		return "", nil
 
 	default:
 		return "", FunctionNotFoundError{Fn: function}
