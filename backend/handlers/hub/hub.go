@@ -287,19 +287,19 @@ func (hub *Hub) String() string {
 func Handler() http.Handler {
 	hub := newHub()
 
-	// ticker := time.NewTicker(5 * time.Second)
-	//
-	// go func() {
-	// 	for {
-	// 		_, ok := <-ticker.C
-	//
-	// 		if !ok {
-	// 			break
-	// 		}
-	//
-	// 		log.Println(hub.String())
-	// 	}
-	// }()
+	ticker := time.NewTicker(5 * time.Second)
+
+	go func() {
+		for {
+			_, ok := <-ticker.C
+
+			if !ok {
+				break
+			}
+
+			log.Println(hub.String())
+		}
+	}()
 
 	return &hub
 }
