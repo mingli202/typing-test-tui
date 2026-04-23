@@ -143,6 +143,7 @@ func (hub *Hub) handleJoin(groupId string, user *User) bool {
 
 // Helper method for Join.
 // Does nothing if group with given groupId is not found
+// Does nothing is user tries to join its own group
 // Assumes the lock is already acquired
 func (hub *Hub) join(groupId string, user *User) bool {
 	group, ok := hub.groups[groupId]
