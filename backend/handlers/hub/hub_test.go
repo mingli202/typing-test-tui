@@ -195,7 +195,7 @@ func TestHandleMessageJoin(t *testing.T) {
 	user2 := hub.newUser(nil)
 
 	msg := models.ReadMessage{
-		Type:    "Join",
+		Type:    "JoinGroup",
 		Payload: fmt.Sprintf(`{"id": "%s"}`, groupId),
 	}
 

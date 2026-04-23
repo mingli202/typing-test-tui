@@ -202,7 +202,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 		id := hub.handleNewGroup(user)
 		return json.Marshal(models.NewGroupResponse{Id: id})
 
-	case "Join":
+	case "JoinGroup":
 		joinGroup := models.JoinGroup{}
 		err = json.Unmarshal([]byte(readMessage.Payload), &joinGroup)
 		if err != nil {
@@ -212,7 +212,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 		success := hub.handleJoin(joinGroup.Id, user)
 		return json.Marshal(models.JoinResponse{Success: success})
 
-	case "Leave":
+	case "LeaveGroup":
 		exitGroup := models.LeaveGroup{}
 		err = json.Unmarshal([]byte(readMessage.Payload), &exitGroup)
 
