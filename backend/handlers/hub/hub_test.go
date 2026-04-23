@@ -1,10 +1,9 @@
 package hub
 
 import (
-	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
-	"tui/backend/models"
 )
 
 func TestNewGroupId(t *testing.T) {
@@ -147,32 +146,17 @@ func TestHandleMessageNewGroup(t *testing.T) {
 
 	user := hub.newUser(nil)
 
-	msg := models.ReadMessage{
-		Type:    "NewGroup",
-		Payload: "",
-	}
+	msg := "NewGroup"
 
-	msgBytes, err := json.Marshal(msg)
+	res, err := hub.handleMessage([]byte(msg), user)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resBytes, err := hub.handleMessage(msgBytes, user)
+	id := res
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resExpected := models.NewGroupResponse{}
-
-	err = json.Unmarshal(resBytes, &resExpected)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	group, ok := hub.groups[resExpected.Id]
+	group, ok := hub.groups[id]
 
 	if !ok {
 		t.Fatal("Id returned an invalid group")
@@ -194,31 +178,21 @@ func TestHandleMessageJoinGroup(t *testing.T) {
 
 	user2 := hub.newUser(nil)
 
-	msg := models.ReadMessage{
-		Type:    "JoinGroup",
-		Payload: fmt.Sprintf(`{"id": "%s"}`, groupId),
-	}
+	msg := "JoinGroup " + groupId
 
-	msgBytes, err := json.Marshal(msg)
+	res, err := hub.handleMessage([]byte(msg), user2)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resBytes, err := hub.handleMessage(msgBytes, user2)
+	success, err := strconv.ParseBool(res)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resExpected := models.JoinResponseGroup{}
-	err = json.Unmarshal(resBytes, &resExpected)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if resExpected.Success == false {
+	if success == false {
 		t.Fatal("Unsuccessful join")
 	}
 
@@ -240,31 +214,21 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 
 	hub.join(groupId, user2)
 
-	msg := models.ReadMessage{
-		Type:    "LeaveGroup",
-		Payload: fmt.Sprintf(`{"id": "%s"}`, groupId),
-	}
+	msg := "LeaveGroup"
 
-	msgBytes, err := json.Marshal(msg)
+	res, err := hub.handleMessage([]byte(msg), user2)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resBytes, err := hub.handleMessage(msgBytes, user2)
+	success, err := strconv.ParseBool(res)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resExpected := models.LeaveGroupResponse{}
-	err = json.Unmarshal(resBytes, &resExpected)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if resExpected.Success == false {
+	if success == false {
 		t.Fatal("Unsuccessful leave")
 	}
 
@@ -274,11 +238,9 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal("Group does not have 1 user")
 	}
 
-	resBytes, err = hub.handleMessage(msgBytes, user1)
-	resExpected = models.LeaveGroupResponse{}
-	err = json.Unmarshal(resBytes, &resExpected)
-
-	if resExpected.Success == false {
+	res, _ = hub.handleMessage([]byte(msg), user1)
+	success, _ = strconv.ParseBool(res)
+	if success == false {
 		t.Fatal("Unsuccessful leave")
 	}
 

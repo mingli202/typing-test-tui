@@ -1,14 +1,14 @@
 package hub
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"tui/backend/models"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -187,49 +187,48 @@ func (hub *Hub) leave(user *User) bool {
 	return false
 }
 
-// Handles websocket message
-// Maps the message function to its own function (the client "calls" a function on the hub)
-// Returns a response message and error
-func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
-	readMessage := models.ReadMessage{}
+/*
+Handles websocket message.
+Expects shape to be <Function> <Payload>.
+Maps the message function to its own function (the client "calls" a function on the hub).
+Returns a response message and error.
 
-	err := json.Unmarshal(p, &readMessage)
+All Functions:
 
-	if err != nil {
-		return []byte{}, err
-	}
+- NewGroup
 
-	log.Println(readMessage)
+- JoinGroup <Id>
 
-	switch readMessage.Type {
+- LeaveGroup
+*/
+func (hub *Hub) handleMessage(p []byte, user *User) (string, error) {
+	msg := string(p)
+	words := strings.Split(msg, " ")
+
+	log.Println(msg)
+
+	function := words[0]
+
+	switch function {
 	case "NewGroup":
 		id := hub.handleNewGroup(user)
-		return json.Marshal(models.NewGroupResponse{Id: id})
+		return id, nil
 
 	case "JoinGroup":
-		joinGroup := models.JoinGroup{}
-		err = json.Unmarshal([]byte(readMessage.Payload), &joinGroup)
-		if err != nil {
-			return []byte{}, err
+		if len(words) != 2 {
+			return "", ErrorMessage{Msg: "Format must be JoinGroup <Id>"}
 		}
 
-		success := hub.handleJoin(joinGroup.Id, user)
-		return json.Marshal(models.JoinResponseGroup{Success: success})
+		id := words[1]
+		success := hub.handleJoin(id, user)
+		return strconv.FormatBool(success), nil
 
 	case "LeaveGroup":
-		exitGroup := models.LeaveGroup{}
-		err = json.Unmarshal([]byte(readMessage.Payload), &exitGroup)
-
-		if err != nil {
-			return []byte{}, err
-		}
-
 		success := hub.handleLeave(user)
-
-		return json.Marshal(models.JoinResponseGroup{Success: success})
+		return strconv.FormatBool(success), nil
 
 	default:
-		return []byte{}, TypeNotFoundError{Type: readMessage.Type}
+		return "", FunctionNotFoundError{Fn: function}
 	}
 }
 
@@ -265,16 +264,10 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		returnMessage, err := hub.handleMessage(p, user)
 
 		if err != nil {
-			errorMsg := models.ErrorResponse{Error: err.Error()}
-			errBytes, errErr := json.Marshal(errorMsg)
-
-			if errErr == nil {
-				err = conn.WriteMessage(websocket.TextMessage, errBytes)
-			}
-
-		} else {
-			err = conn.WriteMessage(websocket.TextMessage, []byte(returnMessage))
+			returnMessage = ErrorMessage{Msg: err.Error()}.Error()
 		}
+
+		err = conn.WriteMessage(websocket.TextMessage, []byte(returnMessage))
 
 		if err != nil {
 			log.Println(err)
@@ -299,7 +292,7 @@ func Handler() http.Handler {
 				break
 			}
 
-			log.Printf(hub.String())
+			log.Println(hub.String())
 		}
 	}()
 

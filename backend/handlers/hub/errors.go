@@ -2,10 +2,18 @@ package hub
 
 import "fmt"
 
-type TypeNotFoundError struct {
-	Type string
+type FunctionNotFoundError struct {
+	Fn string
 }
 
-func (err TypeNotFoundError) Error() string {
-	return fmt.Sprintf("Type not found: %v", err.Type)
+func (err FunctionNotFoundError) Error() string {
+	return fmt.Sprintf("Function not found: %v", err.Fn)
+}
+
+type ErrorMessage struct {
+	Msg string
+}
+
+func (err ErrorMessage) Error() string {
+	return fmt.Sprintf("Error %s", err.Msg)
 }
