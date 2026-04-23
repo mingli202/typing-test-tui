@@ -1,8 +1,10 @@
 package hub
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
+	"tui/backend/models"
 )
 
 func TestNewGroupId(t *testing.T) {
@@ -137,5 +139,48 @@ func TestJoin(t *testing.T) {
 
 	if ok {
 		t.Fatalf("Group1 should have been deleted")
+	}
+}
+
+func TestHandleMessageNewGroup(t *testing.T) {
+	hub := newHub()
+
+	user := hub.newUser(nil)
+
+	msg := models.ReadMessage{
+		Type:    "NewGroup",
+		Payload: "",
+	}
+
+	msgBytes, err := json.Marshal(msg)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resBytes, err := hub.handleMessage(msgBytes, user)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resExpected := models.NewGroupResponse{}
+
+	err = json.Unmarshal(resBytes, &resExpected)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	group, ok := hub.groups[resExpected.Id]
+
+	if !ok {
+		t.Fatal("Id returned an invalid group")
+	}
+
+	_, ok = group.users[user.id]
+
+	if !ok {
+		t.Fatal("Could not find user in returned group")
 	}
 }

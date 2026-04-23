@@ -186,6 +186,7 @@ func (hub *Hub) leave(user *User) bool {
 
 // Handles websocket message
 // Maps the message function to its own function (the client "calls" a function on the hub)
+// Returns a response message and error
 func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 	readMessage := models.ReadMessage{}
 
@@ -199,6 +200,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 	case "NewGroup":
 		id := hub.handleNewGroup(user)
 		return json.Marshal(models.NewGroupResponse{Id: id})
+
 	case "Join":
 		joinGroup := models.JoinGroup{}
 		err = json.Unmarshal([]byte(readMessage.Payload), &joinGroup)
@@ -220,6 +222,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 		success := hub.handleLeave(user)
 
 		return json.Marshal(models.JoinResponse{Success: success})
+
 	default:
 		return []byte{}, TypeNotFoundError{}
 	}
