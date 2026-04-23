@@ -20,7 +20,7 @@ var upgrader = websocket.Upgrader{}
 type User struct {
 	conn       *websocket.Conn
 	id         string
-	groupId    *string
+	group      *Group
 	totalWpm   float64
 	gamePlayed int
 }
@@ -45,14 +45,14 @@ func newGroup(id string) Group {
 // Adds the given user to this group
 func (group *Group) addUser(user *User) {
 	group.users[user.id] = user
-	user.groupId = &group.id
+	user.group = group
 }
 
 // Removes the given user to this group
 // Returns whether this group is empty
 func (group *Group) removeUser(user *User) bool {
 	delete(group.users, user.id)
-	user.groupId = nil
+	user.group = nil
 
 	return len(group.users) == 0
 }
@@ -95,9 +95,9 @@ func newHub() Hub {
 // and returns the newly added user
 func (hub *Hub) newUser(conn *websocket.Conn) *User {
 	user := User{
-		conn:    conn,
-		id:      uuid.NewString(),
-		groupId: nil,
+		conn:  conn,
+		id:    uuid.NewString(),
+		group: nil,
 	}
 
 	hub.mu.Lock()
@@ -176,7 +176,7 @@ func (hub *Hub) join(groupId string, user *User) bool {
 	group, ok := hub.groups[groupId]
 
 	if ok {
-		if user.groupId != nil && groupId == *user.groupId {
+		if user.group != nil && groupId == user.group.id {
 			return true
 		}
 
@@ -201,19 +201,16 @@ func (hub *Hub) handleLeave(user *User) bool {
 // Deletes group if there is nobody left in the group
 // Returns whether the leave was successful or not
 func (hub *Hub) leave(user *User) bool {
-	if user.groupId != nil {
-		id := *user.groupId
+	if user.group != nil {
+		group := user.group
 
-		group, ok := hub.groups[id]
-
-		if ok {
-			isEmpty := group.removeUser(user)
-			if isEmpty {
-				delete(hub.groups, group.id)
-			}
+		isEmpty := group.removeUser(user)
+		if isEmpty {
+			delete(hub.groups, group.id)
 		}
 
-		return ok
+		return true
+
 	}
 
 	return false

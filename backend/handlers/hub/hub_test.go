@@ -34,7 +34,7 @@ func TestNewUser(t *testing.T) {
 		t.Fatalf("Should have added a new user")
 	}
 
-	if user1.groupId != nil {
+	if user1.group != nil {
 		t.Fatalf("User should not belong in any group for now")
 	}
 }
