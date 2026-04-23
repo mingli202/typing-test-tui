@@ -184,3 +184,47 @@ func TestHandleMessageNewGroup(t *testing.T) {
 		t.Fatal("Could not find user in returned group")
 	}
 }
+
+func TestHandleMessageJoin(t *testing.T) {
+	hub := newHub()
+
+	user1 := hub.newUser(nil)
+
+	groupId := hub.handleNewGroup(user1)
+
+	user2 := hub.newUser(nil)
+
+	msg := models.ReadMessage{
+		Type:    "Join",
+		Payload: fmt.Sprintf(`{"id": "%s"}`, groupId),
+	}
+
+	msgBytes, err := json.Marshal(msg)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resBytes, err := hub.handleMessage(msgBytes, user2)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resExpected := models.JoinResponse{}
+	err = json.Unmarshal(resBytes, &resExpected)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resExpected.Success == false {
+		t.Fatal("Unsuccessful join")
+	}
+
+	group := hub.groups[groupId]
+
+	if len(group.users) != 2 {
+		t.Fatal("Group does not have 2 users")
+	}
+}
