@@ -185,7 +185,7 @@ func TestHandleMessageNewGroup(t *testing.T) {
 	}
 }
 
-func TestHandleMessageJoin(t *testing.T) {
+func TestHandleMessageJoinGroup(t *testing.T) {
 	hub := newHub()
 
 	user1 := hub.newUser(nil)
@@ -211,7 +211,7 @@ func TestHandleMessageJoin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resExpected := models.JoinResponse{}
+	resExpected := models.JoinResponseGroup{}
 	err = json.Unmarshal(resBytes, &resExpected)
 
 	if err != nil {
@@ -226,5 +226,67 @@ func TestHandleMessageJoin(t *testing.T) {
 
 	if len(group.users) != 2 {
 		t.Fatal("Group does not have 2 users")
+	}
+}
+
+func TestHandleMessageLeaveGroup(t *testing.T) {
+	hub := newHub()
+
+	user1 := hub.newUser(nil)
+
+	groupId := hub.handleNewGroup(user1)
+
+	user2 := hub.newUser(nil)
+
+	hub.join(groupId, user2)
+
+	msg := models.ReadMessage{
+		Type:    "LeaveGroup",
+		Payload: fmt.Sprintf(`{"id": "%s"}`, groupId),
+	}
+
+	msgBytes, err := json.Marshal(msg)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resBytes, err := hub.handleMessage(msgBytes, user2)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resExpected := models.LeaveGroupResponse{}
+	err = json.Unmarshal(resBytes, &resExpected)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resExpected.Success == false {
+		t.Fatal("Unsuccessful leave")
+	}
+
+	group := hub.groups[groupId]
+
+	if len(group.users) != 1 {
+		t.Fatal("Group does not have 1 user")
+	}
+
+	resBytes, err = hub.handleMessage(msgBytes, user1)
+	resExpected = models.LeaveGroupResponse{}
+	err = json.Unmarshal(resBytes, &resExpected)
+
+	if resExpected.Success == false {
+		t.Fatal("Unsuccessful leave")
+	}
+
+	if len(group.users) != 0 {
+		t.Fatal("Group does not have 0 user")
+	}
+
+	if _, ok := hub.groups[groupId]; ok {
+		t.Fatal("Group did not get removed")
 	}
 }

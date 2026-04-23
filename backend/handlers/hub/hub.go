@@ -210,7 +210,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 		}
 
 		success := hub.handleJoin(joinGroup.Id, user)
-		return json.Marshal(models.JoinResponse{Success: success})
+		return json.Marshal(models.JoinResponseGroup{Success: success})
 
 	case "LeaveGroup":
 		exitGroup := models.LeaveGroup{}
@@ -222,7 +222,7 @@ func (hub *Hub) handleMessage(p []byte, user *User) ([]byte, error) {
 
 		success := hub.handleLeave(user)
 
-		return json.Marshal(models.JoinResponse{Success: success})
+		return json.Marshal(models.JoinResponseGroup{Success: success})
 
 	default:
 		return []byte{}, TypeNotFoundError{Type: readMessage.Type}

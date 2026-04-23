@@ -22,10 +22,10 @@ type NewGroupResponse struct {
 	Id string
 }
 
-type JoinResponse struct {
+type JoinResponseGroup struct {
 	Success bool
 }
 
-type ExitResponse struct {
+type LeaveGroupResponse struct {
 	Success bool
 }
