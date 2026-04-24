@@ -33,10 +33,6 @@ func TestNewUser(t *testing.T) {
 		t.Fatalf("How could a group been made?")
 	}
 
-	if len(hub.users) != 1 {
-		t.Fatalf("Should have added a new user")
-	}
-
 	if user1.group != nil {
 		t.Fatalf("User should not belong in any group for now")
 	}
@@ -49,9 +45,6 @@ func TestRemoveUser(t *testing.T) {
 
 	hub.removeUser(user1)
 
-	if len(hub.users) != 0 {
-		t.Fatalf("Should have remove an user")
-	}
 }
 
 func TestNewGroup(t *testing.T) {

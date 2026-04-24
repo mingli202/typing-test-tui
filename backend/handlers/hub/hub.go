@@ -135,9 +135,8 @@ func (group *Group) startGame() {
 }
 
 type Hub struct {
-	mu           sync.Mutex
+	mu           sync.RWMutex
 	groups       map[string]Group
-	users        map[string]User
 	dataProvider data_provider.DataProvider
 }
 
@@ -145,7 +144,6 @@ type Hub struct {
 func newHub(dataProvider data_provider.DataProvider) Hub {
 	return Hub{
 		groups:       make(map[string]Group),
-		users:        make(map[string]User),
 		dataProvider: dataProvider,
 	}
 }
@@ -158,18 +156,6 @@ func (hub *Hub) newUser(conn *websocket.Conn) *User {
 		id:    uuid.NewString(),
 		group: nil,
 	}
-
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-
-	_, ok := hub.users[user.id]
-
-	for ok {
-		user.id = uuid.NewString()
-		_, ok = hub.users[user.id]
-	}
-
-	hub.users[user.id] = user
 
 	return &user
 }
@@ -186,7 +172,6 @@ func (hub *Hub) removeUser(user *User) {
 		user.conn = nil
 	}
 	hub.leave(user)
-	delete(hub.users, user.id)
 }
 
 // Returns a new unique group Id
@@ -379,7 +364,7 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (hub *Hub) String() string {
-	return fmt.Sprintf("Hub {\n    groups: %+v\n    user: %+v\n}", hub.groups, hub.users)
+	return fmt.Sprintf("Hub {\n    groups: %+v\n}", hub.groups)
 }
 
 func Handler(dataProvider data_provider.DataProvider) http.Handler {
