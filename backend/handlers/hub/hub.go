@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"maps"
@@ -35,13 +36,7 @@ func (user *User) avgWpm() float64 {
 type Group struct {
 	id    string
 	users map[string]*User
-
-	progress map[string]struct {
-		letterIndex uint
-		wpm         float64
-	}
-
-	data models.Data
+	data  models.Data
 }
 
 // Makes a new group with the given id and data
@@ -94,6 +89,48 @@ func (group *Group) broadcast(msg string) {
 		if user.conn != nil {
 			user.conn.WriteMessage(websocket.TextMessage, []byte(msg))
 		}
+	}
+}
+
+// Starts the game and broadcasts updates every 1 second
+func (group *Group) startGame() {
+	minWpm := 30
+	nWords := len(strings.Split(group.data.Text, " "))
+
+	progress := make(map[string]models.Progress)
+
+	for userId := range maps.Keys(group.users) {
+		progress[userId] = models.Progress{
+			Wpm:      0,
+			Progress: 0,
+		}
+	}
+
+	ticker := time.Tick(time.Second * 1)
+	timer := time.NewTimer(time.Second * 60 * time.Duration(minWpm) * time.Duration(nWords))
+
+	countdown := 10
+
+	for {
+		select {
+		case <-ticker:
+			if countdown == 0 {
+				progressBytes, err := json.Marshal(maps.Keys(progress))
+
+				if err != nil {
+					log.Println(err)
+					break
+				}
+
+				group.broadcast("Game " + string(progressBytes))
+			} else {
+				group.broadcast(fmt.Sprintf("Countdown %v", countdown))
+				countdown -= 1
+			}
+		case <-timer.C:
+			break
+		}
+
 	}
 }
 
@@ -253,13 +290,13 @@ Returns a response message and error.
 
 All Functions:
 
-- NewGroup -> <NewlyJoinedGroupId>
+- NewGroup -> <LobbyResponse>
 
-- JoinGroup <Id> -> <LobbyInfo>
+- JoinGroup <Id> -> <LobbyResponse>
 
 - LeaveGroup -> <DidSucceed>
 
-- Match -> <LobbyInfo>
+- Match -> <LobbyResponse>
 
 - Start -> Countdown
 */
