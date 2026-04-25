@@ -80,7 +80,7 @@ func (group *Group) GetUsersSnapshot() []*user.User {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	var snapShot []*user.User
+	snapShot := make([]*user.User, 0)
 
 	for u := range maps.Values(group.users) {
 		snapShot = append(snapShot, u)
