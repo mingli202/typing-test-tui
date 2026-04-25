@@ -92,17 +92,17 @@ func TestJoin(t *testing.T) {
 	user2 := newUser(nil)
 
 	groupId1 := hub.handleNewGroup(&user1)
-	group1 := hub.groups[groupId1]
+	group1, ok := hub.getGroup(groupId1)
+
+	if !ok {
+		t.Fatal("Where is the group??")
+	}
 
 	// user joins itself
-	ok := hub.handleJoin(groupId1, &user1)
+	ok = hub.handleJoin(groupId1, &user1)
 
 	if !ok {
 		t.Fatal("Technically the user can in fact join its own group")
-	}
-
-	if _, ok = hub.groups[groupId1]; !ok {
-		t.Fatal("Where is the group??")
 	}
 
 	// user 2 joins valid group
@@ -132,6 +132,10 @@ func TestJoin(t *testing.T) {
 	}
 
 	hub.handleJoin(groupId2, &user2)
+
+	if len(hub.groups) != 1 {
+		t.Fatal("Old group should have been removed")
+	}
 
 	if len(group2.users) != 2 {
 		t.Fatalf("User 2 should have joined the second group")
