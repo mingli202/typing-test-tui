@@ -33,6 +33,7 @@ func NewGroup(id string, data models.Data) Group {
 }
 
 // Adds the given user to this group
+// Sets the given user's groupId to this group's id
 func (group *Group) AddUser(u *user.User) {
 	group.mu.Lock()
 	defer group.mu.Unlock()
@@ -41,7 +42,8 @@ func (group *Group) AddUser(u *user.User) {
 	u.GroupId = &group.id
 }
 
-// Removes the given user to this group
+// Removes the given user to this grouptitle
+// Removes the given user's groupId
 // Returns whether this group is empty
 func (group *Group) RemoveUser(u *user.User) bool {
 	group.mu.Lock()
