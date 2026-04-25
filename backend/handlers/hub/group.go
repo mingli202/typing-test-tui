@@ -55,7 +55,9 @@ func (group *Group) avgWpm() float64 {
 	totalWpm := 0.0
 	n := 0
 
-	for user := range maps.Values(group.users) {
+	users := group.getUsersSnapshot()
+
+	for user := range users {
 		if user != nil {
 			totalWpm += user.avgWpm()
 			n += 1
@@ -82,7 +84,9 @@ func (group *Group) broadcast(msg string) {
 	users := group.getUsersSnapshot()
 
 	for user := range users {
-		user.sendMsg(msg)
+		if user != nil {
+			user.sendMsg(msg)
+		}
 	}
 }
 
