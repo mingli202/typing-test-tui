@@ -1,10 +1,11 @@
 package data_provider
 
 import (
+	_ "embed"
 	"encoding/json"
 	"log"
 	"math/rand/v2"
-	"os"
+	"tui/backend/assets"
 	"tui/backend/models"
 )
 
@@ -15,18 +16,9 @@ type DataProvider struct {
 // Reads from ../assets/english.json and returns a new provider
 // If err != nil, return the defaul provider (has no data)
 func NewDataProvider() (DataProvider, error) {
-	filepath := "../assets/english.json"
-
-	quotesBytes, err := os.ReadFile(filepath)
-
-	if err != nil {
-		log.Printf("Could not load from %v: %v\n", filepath, err)
-		return defaultProvider(), err
-	}
-
 	var repository []models.Data
 
-	if err := json.Unmarshal(quotesBytes, &repository); err != nil {
+	if err := json.Unmarshal(assets.Data, &repository); err != nil {
 		log.Printf("Could no decode into Data: %v", err)
 		return defaultProvider(), err
 
