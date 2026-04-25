@@ -91,10 +91,10 @@ func (hub *Hub) handleNewGroup(user *User) string {
 // If the group has no users, remove the group from the repo
 // Returns whether the remove was successful or not
 func (hub *Hub) handleLeave(user *User) bool {
-	if group := user.group; group != nil {
-		hub.mu.Lock()
-		defer hub.mu.Unlock()
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
 
+	if group := user.group; group != nil {
 		isEmpty := group.removeUser(user)
 		if isEmpty {
 			delete(hub.groups, group.id)
@@ -129,14 +129,11 @@ func (hub *Hub) handleJoin(groupId string, user *User) bool {
 // Closes the user's connection
 // Removes the user from its group if there is one
 func (hub *Hub) removeUser(user *User) {
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-
+	hub.handleLeave(user)
 	if user.conn != nil {
 		user.conn.Close()
 		user.conn = nil
 	}
-	hub.handleLeave(user)
 }
 
 func (hub *Hub) getGroup(id string) (*Group, bool) {
@@ -293,7 +290,7 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (hub *Hub) String() string {
-	return fmt.Sprintf("Hub {\n    groups: %+v\n}", hub.groups)
+	return fmt.Sprintf("Hub {\n    groups: %#v\n}", hub.groups)
 }
 
 func Handler(dataProvider data_provider.DataProvider) http.Handler {
