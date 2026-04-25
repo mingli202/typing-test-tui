@@ -1,7 +1,10 @@
 package models
 
 type Progress struct {
-	Wpm      float64
+	UserId string
+	// The current wpm of the user, calculated by the tui client
+	Wpm float64
+	// At which character the user is at
 	Progress uint8
 }
 
