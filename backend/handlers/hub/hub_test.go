@@ -38,15 +38,6 @@ func TestNewUser(t *testing.T) {
 	}
 }
 
-func TestRemoveUser(t *testing.T) {
-	hub := newHub(dataProvider)
-
-	user1 := newUser(nil)
-
-	hub.removeUser(&user1)
-
-}
-
 func TestNewGroup(t *testing.T) {
 	hub := newHub(dataProvider)
 
@@ -262,4 +253,35 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 	if _, ok := hub.groups[groupId]; ok {
 		t.Fatal("Group did not get removed")
 	}
+}
+
+func TestRemoveUser(t *testing.T) {
+	hub := newHub(dataProvider)
+
+	user1 := newUser(nil)
+	user2 := newUser(nil)
+	user3 := newUser(nil)
+
+	groupId1 := hub.handleNewGroup(&user1)
+	hub.handleJoin(groupId1, &user2)
+
+	hub.removeUser(&user1)
+
+	group1, ok := hub.getGroup(groupId1)
+
+	if !ok {
+		t.Fatal("Where tf is the group??")
+	}
+
+	if len(group1.users) != 1 {
+		t.Fatal("User1 did not get removed from its group")
+	}
+
+	hub.removeUser(&user2)
+
+	if _, ok = hub.getGroup(groupId1); ok {
+		t.Fatal("Group1 should have been removed")
+	}
+
+	hub.removeUser(&user3) // don't crash pls
 }
