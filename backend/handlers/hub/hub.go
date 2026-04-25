@@ -245,11 +245,14 @@ func (hub *Hub) join(groupId string, user *User) bool {
 	group, ok := hub.groups[groupId]
 
 	if ok {
-		if user.group != nil && groupId == user.group.id {
-			return true
+		if user.group != nil {
+			if groupId == user.group.id {
+				return true
+			} else {
+				hub.leave(user)
+			}
 		}
 
-		hub.leave(user)
 		group.addUser(user)
 	}
 
@@ -259,10 +262,14 @@ func (hub *Hub) join(groupId string, user *User) bool {
 // User leaves its group if any
 // Returns whether the remove was successful or not
 func (hub *Hub) handleLeave(user *User) bool {
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
+	if user.group != nil {
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
 
-	return hub.leave(user)
+		return hub.leave(user)
+	}
+
+	return false
 }
 
 // Helper method for leave
@@ -270,16 +277,13 @@ func (hub *Hub) handleLeave(user *User) bool {
 // Deletes group if there is nobody left in the group
 // Returns whether the leave was successful or not
 func (hub *Hub) leave(user *User) bool {
-	if user.group != nil {
-		group := user.group
-
+	if group := user.group; group != nil {
 		isEmpty := group.removeUser(user)
 		if isEmpty {
 			delete(hub.groups, group.id)
 		}
 
 		return true
-
 	}
 
 	return false
