@@ -3,14 +3,13 @@ package hub
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"log"
 	"maps"
 	"strings"
 	"sync"
 	"time"
 	"tui/backend/models"
-
-	"github.com/gorilla/websocket"
 )
 
 type Group struct {
@@ -70,12 +69,20 @@ func (group *Group) avgWpm() float64 {
 	return totalWpm / float64(n)
 }
 
+// Gets list of users at this moment of calling this function
+func (group *Group) getUsersSnapshot() iter.Seq[*User] {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	return maps.Values(group.users)
+}
+
 // Sends a message to every user of this group
 func (group *Group) broadcast(msg string) {
-	for user := range maps.Values(group.users) {
-		if user.conn != nil {
-			user.conn.WriteMessage(websocket.TextMessage, []byte(msg))
-		}
+	users := group.getUsersSnapshot()
+
+	for user := range users {
+		user.sendMsg(msg)
 	}
 }
 
