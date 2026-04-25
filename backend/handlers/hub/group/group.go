@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"maps"
-	"math/rand/v2"
 	"strings"
 	"sync"
 	"time"
@@ -24,19 +23,8 @@ func (group *Group) Id() string {
 	return group.id
 }
 
-func newGroupId() string {
-	s := ""
-
-	for i := 0; i < 6; i += 1 {
-		randomChar := rand.IntN('z'-'a') + 'a'
-		s = s + string(rune(randomChar))
-	}
-
-	return s
-}
-
 // Makes a new group with the given id and data
-func newGroup(id string, data models.Data) Group {
+func NewGroup(id string, data models.Data) Group {
 	return Group{
 		id:    id,
 		users: make(map[string]*user.User),
@@ -45,7 +33,7 @@ func newGroup(id string, data models.Data) Group {
 }
 
 // Adds the given user to this group
-func (group *Group) addUser(u *user.User) {
+func (group *Group) AddUser(u *user.User) {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
@@ -55,7 +43,7 @@ func (group *Group) addUser(u *user.User) {
 
 // Removes the given user to this group
 // Returns whether this group is empty
-func (group *Group) removeUser(u *user.User) bool {
+func (group *Group) RemoveUser(u *user.User) bool {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
@@ -71,7 +59,7 @@ func (group *Group) avgWpm() float64 {
 	totalWpm := 0.0
 	n := 0
 
-	users := group.getUsersSnapshot()
+	users := group.GetUsersSnapshot()
 
 	for _, u := range users {
 		if u != nil {
@@ -88,7 +76,7 @@ func (group *Group) avgWpm() float64 {
 }
 
 // Gets list of users at this moment of calling this function
-func (group *Group) getUsersSnapshot() []*user.User {
+func (group *Group) GetUsersSnapshot() []*user.User {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
@@ -103,7 +91,7 @@ func (group *Group) getUsersSnapshot() []*user.User {
 
 // Sends a message to every user of this group
 func (group *Group) broadcast(msg string) {
-	users := group.getUsersSnapshot()
+	users := group.GetUsersSnapshot()
 
 	for _, u := range users {
 		if u != nil {

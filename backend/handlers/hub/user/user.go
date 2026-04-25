@@ -28,7 +28,7 @@ func (user *User) AvgWpm() float64 {
 
 // Adds a user to its user repository
 // and returns the newly added user
-func newUser(conn *websocket.Conn) User {
+func NewUser(conn *websocket.Conn) User {
 	user := User{
 		conn:    conn,
 		ch:      make(chan []byte, 10),
@@ -40,7 +40,7 @@ func newUser(conn *websocket.Conn) User {
 }
 
 // Init the buffered channel to listen for write messages
-func (user *User) initWriteMessageCh() {
+func (user *User) InitWriteMessageCh() {
 	defer close(user.ch)
 
 	for {
@@ -63,4 +63,10 @@ func (user *User) initWriteMessageCh() {
 // Helper method to send a string of message
 func (user *User) SendMsg(msg string) {
 	user.ch <- []byte(msg)
+}
+
+func (user *User) CloseConn() {
+	if user.conn != nil {
+		user.conn.Close()
+	}
 }

@@ -2,14 +2,20 @@ package group_test
 
 import (
 	"testing"
+	"tui/backend/handlers/hub/group"
+	"tui/backend/services/data_provider"
 )
+
+var dataProvider, _ = data_provider.NewDataProvider()
 
 func TestNewGroup(t *testing.T) {
 	data, _ := dataProvider.NewData()
-	group := newGroup("asdf", data)
+	group := group.NewGroup("asdf", data)
 
-	if group.users == nil {
-		t.Error("group.user should not be nil")
+	users := group.GetUsersSnapshot()
+
+	if users == nil || len(users) != 1 {
+		t.Error("group.users should not be nil")
 	}
 }
 
