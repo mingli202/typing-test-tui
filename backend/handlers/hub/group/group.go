@@ -56,6 +56,27 @@ func (group *Group) RemoveUser(u *user.User) bool {
 	return len(group.users) == 0
 }
 
+// Gets list of users at this moment of calling this function
+func (group *Group) GetUsersSnapshot() []*user.User {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	snapShot := make([]*user.User, 0)
+
+	for u := range maps.Values(group.users) {
+		snapShot = append(snapShot, u)
+	}
+
+	return snapShot
+}
+
+// Sends a message to every user of this group
+func (group *Group) broadcast(msg string) {
+	users := group.GetUsersSnapshot()
+
+	broadcastUsers(users, msg)
+}
+
 // avgWpm gets the average wpm of this group
 // Used to match users in relatively equal brackets
 func (group *Group) avgWpm() float64 {
@@ -76,27 +97,6 @@ func (group *Group) avgWpm() float64 {
 	}
 
 	return totalWpm / float64(n)
-}
-
-// Gets list of users at this moment of calling this function
-func (group *Group) GetUsersSnapshot() []*user.User {
-	group.mu.RLock()
-	defer group.mu.RUnlock()
-
-	snapShot := make([]*user.User, 0)
-
-	for u := range maps.Values(group.users) {
-		snapShot = append(snapShot, u)
-	}
-
-	return snapShot
-}
-
-// Sends a message to every user of this group
-func (group *Group) broadcast(msg string) {
-	users := group.GetUsersSnapshot()
-
-	broadcastUsers(users, msg)
 }
 
 // Starts the game and broadcasts updates every 1 second
