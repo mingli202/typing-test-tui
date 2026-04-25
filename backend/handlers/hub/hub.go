@@ -22,15 +22,48 @@ var upgrader = websocket.Upgrader{}
 
 type User struct {
 	conn       *websocket.Conn
+	ch         chan []byte
 	id         string
 	group      *Group
 	totalWpm   float64
 	gamePlayed int
-	name       string
 }
 
 func (user *User) avgWpm() float64 {
 	return user.totalWpm / float64(user.gamePlayed)
+}
+
+// Adds a user to its user repository
+// and returns the newly added user
+func newUser(conn *websocket.Conn) User {
+	user := User{
+		conn:  conn,
+		ch:    make(chan []byte, 10),
+		id:    uuid.NewString(),
+		group: nil,
+	}
+
+	return user
+}
+
+// Init the buffered channel to listen for write messages
+func (user *User) initWriteMessageCh() {
+	for {
+		p, ok := <-user.ch
+
+		if !ok {
+			return
+		}
+
+		if err := user.conn.WriteMessage(websocket.TextMessage, p); err != nil {
+			return
+		}
+	}
+}
+
+// Helper method to send a string of message
+func (user *User) sendMsg(msg string) {
+	user.ch <- []byte(msg)
 }
 
 type Group struct {
@@ -146,18 +179,6 @@ func newHub(dataProvider data_provider.DataProvider) Hub {
 		groups:       make(map[string]Group),
 		dataProvider: dataProvider,
 	}
-}
-
-// Adds a user to its user repository
-// and returns the newly added user
-func (hub *Hub) newUser(conn *websocket.Conn) *User {
-	user := User{
-		conn:  conn,
-		id:    uuid.NewString(),
-		group: nil,
-	}
-
-	return &user
 }
 
 // Removes the given user from the user repository
