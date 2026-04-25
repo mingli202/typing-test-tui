@@ -52,6 +52,10 @@ func (user *User) initWriteMessageCh() {
 			return
 		}
 
+		if user.conn == nil {
+			return
+		}
+
 		if err := user.conn.WriteMessage(websocket.TextMessage, p); err != nil {
 			return
 		}
@@ -132,7 +136,6 @@ func (hub *Hub) removeUser(user *User) {
 	hub.handleLeave(user)
 	if user.conn != nil {
 		user.conn.Close()
-		user.conn = nil
 	}
 }
 
