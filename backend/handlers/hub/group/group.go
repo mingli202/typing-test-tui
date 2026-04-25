@@ -34,6 +34,7 @@ func NewGroup(id string, data models.Data) Group {
 
 // Adds the given user to this group
 // Sets the given user's groupId to this group's id
+// There can be no duplicate users
 func (group *Group) AddUser(u *user.User) {
 	group.mu.Lock()
 	defer group.mu.Unlock()
