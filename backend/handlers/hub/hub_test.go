@@ -27,7 +27,7 @@ func TestNewGroupId(t *testing.T) {
 func TestNewUser(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user1 := hub.newUser(nil)
+	user1 := newUser(nil)
 
 	if len(hub.groups) != 0 {
 		t.Fatalf("How could a group been made?")
@@ -41,18 +41,18 @@ func TestNewUser(t *testing.T) {
 func TestRemoveUser(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user1 := hub.newUser(nil)
+	user1 := newUser(nil)
 
-	hub.removeUser(user1)
+	hub.removeUser(&user1)
 
 }
 
 func TestNewGroup(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user := hub.newUser(nil)
+	user := newUser(nil)
 
-	groupId := hub.handleNewGroup(user)
+	groupId := hub.handleNewGroup(&user)
 
 	if len(hub.groups) != 1 {
 		t.Fatalf("Should have added a group")
@@ -68,7 +68,7 @@ func TestNewGroup(t *testing.T) {
 		t.Fatalf("User not been added")
 	}
 
-	groupId = hub.handleNewGroup(user)
+	groupId = hub.handleNewGroup(&user)
 
 	if len(hub.groups) != 1 {
 		t.Fatalf("Should have added a new group but old group is gone")
@@ -88,14 +88,14 @@ func TestNewGroup(t *testing.T) {
 func TestJoin(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user1 := hub.newUser(nil)
-	user2 := hub.newUser(nil)
+	user1 := newUser(nil)
+	user2 := newUser(nil)
 
-	groupId1 := hub.handleNewGroup(user1)
+	groupId1 := hub.handleNewGroup(&user1)
 	group1 := hub.groups[groupId1]
 
 	// user joins itself
-	ok := hub.handleJoin(groupId1, user1)
+	ok := hub.handleJoin(groupId1, &user1)
 
 	if !ok {
 		t.Fatal("Technically the user can in fact join its own group")
@@ -106,14 +106,14 @@ func TestJoin(t *testing.T) {
 	}
 
 	// user 2 joins valid group
-	ok = hub.handleJoin(groupId1, user2)
+	ok = hub.handleJoin(groupId1, &user2)
 
 	if !ok {
 		t.Fatalf("Join unsuccessful")
 	}
 
 	// user 1 joins invalid group
-	ok = hub.handleJoin("ramdom groupId", user1)
+	ok = hub.handleJoin("ramdom groupId", &user1)
 
 	if ok {
 		t.Fatalf("Group id not found, impossible")
@@ -124,14 +124,14 @@ func TestJoin(t *testing.T) {
 	}
 
 	// user1 makes another group
-	groupId2 := hub.handleNewGroup(user1)
+	groupId2 := hub.handleNewGroup(&user1)
 	group2 := hub.groups[groupId2]
 
 	if len(group1.users) != 1 {
 		t.Fatalf("User 1 should have left the first group")
 	}
 
-	hub.handleJoin(groupId2, user2)
+	hub.handleJoin(groupId2, &user2)
 
 	if len(group2.users) != 2 {
 		t.Fatalf("User 2 should have joined the second group")
@@ -151,11 +151,11 @@ func TestJoin(t *testing.T) {
 func TestHandleMessageNewGroup(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user := hub.newUser(nil)
+	user := newUser(nil)
 
 	msg := "NewGroup"
 
-	res, err := hub.handleMessage([]byte(msg), user)
+	res, err := hub.handleMessage([]byte(msg), &user)
 
 	if err != nil {
 		t.Fatal(err)
@@ -179,15 +179,15 @@ func TestHandleMessageNewGroup(t *testing.T) {
 func TestHandleMessageJoinGroup(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user1 := hub.newUser(nil)
+	user1 := newUser(nil)
 
-	groupId := hub.handleNewGroup(user1)
+	groupId := hub.handleNewGroup(&user1)
 
-	user2 := hub.newUser(nil)
+	user2 := newUser(nil)
 
 	msg := "JoinGroup " + groupId
 
-	res, err := hub.handleMessage([]byte(msg), user2)
+	res, err := hub.handleMessage([]byte(msg), &user2)
 
 	if err != nil {
 		t.Fatal(err)
@@ -213,17 +213,17 @@ func TestHandleMessageJoinGroup(t *testing.T) {
 func TestHandleMessageLeaveGroup(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	user1 := hub.newUser(nil)
+	user1 := newUser(nil)
 
-	groupId := hub.handleNewGroup(user1)
+	groupId := hub.handleNewGroup(&user1)
 
-	user2 := hub.newUser(nil)
+	user2 := newUser(nil)
 
-	hub.join(groupId, user2)
+	hub.join(groupId, &user2)
 
 	msg := "LeaveGroup"
 
-	res, err := hub.handleMessage([]byte(msg), user2)
+	res, err := hub.handleMessage([]byte(msg), &user2)
 
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +245,7 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal("Group does not have 1 user")
 	}
 
-	res, _ = hub.handleMessage([]byte(msg), user1)
+	res, _ = hub.handleMessage([]byte(msg), &user1)
 	success, _ = strconv.ParseBool(res)
 	if success == false {
 		t.Fatal("Unsuccessful leave")
