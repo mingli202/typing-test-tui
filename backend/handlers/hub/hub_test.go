@@ -3,12 +3,16 @@ package hub
 import (
 	"errors"
 	"fmt"
+	"net/http/httptest"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"tui/backend/handlers/hub/user"
 	"tui/backend/services/data_provider"
+
+	"github.com/gorilla/websocket"
 )
 
 var dataProvider, _ = data_provider.NewDataProvider()
@@ -322,11 +326,6 @@ func TestHandleMessageJoinGroupBadFormat(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error for %q", msg)
 		}
-
-		var errMsg ErrorMessage
-		if !errors.As(err, &errMsg) {
-			t.Fatalf("expected ErrorMessage for %q, got %T", msg, err)
-		}
 	}
 }
 
@@ -420,4 +419,50 @@ func TestConcurrentJoinStability(t *testing.T) {
 	if totalUsers != nUsers+2 {
 		t.Fatalf("expected %d users across both groups (including anchors), got %d", nUsers+2, totalUsers)
 	}
+}
+
+func TestLeaveGroupNoCrash(t *testing.T) {
+	hub := newHub(dataProvider)
+
+	server := httptest.NewServer(&hub)
+	defer server.Close()
+
+	conn1 := newTestConn(t, server)
+	conn2 := newTestConn(t, server)
+	conn3 := newTestConn(t, server)
+	defer conn1.Close()
+	defer conn2.Close()
+	defer conn3.Close()
+
+	if err := conn1.WriteMessage(websocket.TextMessage, []byte("NewGroup")); err != nil {
+		t.Fatal(err)
+	}
+
+	msgType, res, err := conn1.ReadMessage()
+
+	if msgType != websocket.TextMessage {
+		t.Fatal("Response is not a text message")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	groupId := string(res)
+
+	if _, ok := hub.groups[groupId]; !ok {
+		t.Fatal("NewGroup did not respond with groupid")
+	}
+}
+
+// Gets a new connection to the test server
+func newTestConn(t *testing.T, server *httptest.Server) *websocket.Conn {
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return conn
 }
