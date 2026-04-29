@@ -89,21 +89,19 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) bool {
 // Handles the updating of stats
 // Does nothing if the user is not in a group
 // Does nothing if the user's group can't be found
-// Return whether the update was successful
-func (hub *Hub) handleUpdateStats(u *user.User, wpm float64, progress uint8) bool {
+// Return the error if any
+func (hub *Hub) handleUpdateStats(u *user.User, wpm float64, progress uint8) error {
 	if u.GroupId == nil {
-		return false
+		return fmt.Errorf("User not in any group!")
 	}
 
 	group, ok := hub.getGroup(*u.GroupId)
 
 	if !ok {
-		return false
+		return fmt.Errorf("Could not find any group with group id %s", group.Id())
 	}
 
-	group.UpdateStats(u, wpm, progress)
-
-	return true
+	return group.UpdateStats(u, wpm, progress)
 }
 
 // Removes the given user from the user repository
@@ -224,9 +222,9 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 			return "", fmt.Errorf("<Progress> must be an int")
 		}
 
-		hub.handleUpdateStats(u, wpm, uint8(progress))
+		err = hub.handleUpdateStats(u, wpm, uint8(progress))
 
-		return "", nil
+		return "", err
 
 	default:
 		return "", FunctionNotFoundError{Fn: function}

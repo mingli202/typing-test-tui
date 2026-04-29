@@ -76,18 +76,21 @@ func (group *Group) GetUsersSnapshot() []*user.User {
 
 // Update the running game's stats
 // If there is no game, it does nothing
-func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) {
+// Returns an error if the game is not running
+func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) error {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
 	if !group.isGameRunning {
-		return
+		return fmt.Errorf("Game is not running!")
 	}
 
 	if p, ok := group.progress[u.Id()]; ok {
 		p.Wpm = wpm
 		p.Progress = progress
 	}
+
+	return nil
 }
 
 // Sends a message to every user of this group
