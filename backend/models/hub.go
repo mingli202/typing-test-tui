@@ -7,8 +7,12 @@ type Progress struct {
 	Progress uint8
 }
 
-type LobbyResponse struct {
-	LobbyId  string
-	data     Data
-	Progress []Progress
+type LobbyInfo struct {
+	LobbyId string
+	Data    Data
+	Players map[string]PlayerInfo
+}
+
+type PlayerInfo struct {
+	IsLeader bool
 }

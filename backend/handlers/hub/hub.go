@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -11,6 +12,7 @@ import (
 	"time"
 	"tui/backend/handlers/hub/group"
 	"tui/backend/handlers/hub/user"
+	"tui/backend/models"
 	"tui/backend/services/data_provider"
 
 	"github.com/gorilla/websocket"
@@ -34,12 +36,12 @@ func newHub(dataProvider data_provider.DataProvider) Hub {
 
 // Makes a new group and adds the given user to it
 // Returns the newly created group id
-func (hub *Hub) handleNewGroup(u *user.User) string {
+func (hub *Hub) handleNewGroup(u *user.User) (models.LobbyInfo, error) {
 	group := hub.newGroup()
 
-	hub.handleJoin(group.Id(), u)
+	lobbyInfo, err := hub.handleJoin(group.Id(), u)
 
-	return group.Id()
+	return lobbyInfo, err
 }
 
 // User leaves its group if any
@@ -70,11 +72,11 @@ func (hub *Hub) handleLeave(u *user.User) bool {
 // Appends the given conn to the group with the given id
 // If the user is already in a group, they will be removed from it
 // Return whether the conn was added to the group
-func (hub *Hub) handleJoin(groupId string, u *user.User) bool {
+func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, error) {
 	group, ok := hub.getGroup(groupId)
 
 	if !ok {
-		return false
+		return models.LobbyInfo{}, fmt.Errorf("Could not find group to join")
 	}
 
 	if u.GroupId != nil && *u.GroupId != groupId {
@@ -83,7 +85,9 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) bool {
 
 	group.AddUser(u)
 
-	return true
+	lobbyInfo := group.AsLobbySnapshot()
+
+	return lobbyInfo, nil
 }
 
 // Handles the updating of stats
@@ -208,8 +212,18 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 
 	switch function {
 	case "NewGroup":
-		id := hub.handleNewGroup(u)
-		return id, nil
+		lobbyInfo, err := hub.handleNewGroup(u)
+
+		if err != nil {
+			return "", err
+		}
+
+		str, marshalErr := json.Marshal(lobbyInfo)
+		if marshalErr != nil {
+			return "", err
+		}
+
+		return string(str), nil
 
 	case "JoinGroup":
 		if len(words) != 2 {
@@ -217,8 +231,17 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 		}
 
 		id := words[1]
-		success := hub.handleJoin(id, u)
-		return strconv.FormatBool(success), nil
+		lobbyInfo, err := hub.handleJoin(id, u)
+		if err != nil {
+			return "", err
+		}
+
+		str, marshalErr := json.Marshal(lobbyInfo)
+		if marshalErr != nil {
+			return "", err
+		}
+
+		return string(str), nil
 
 	case "LeaveGroup":
 		success := hub.handleLeave(u)
