@@ -116,7 +116,7 @@ func (hub *Hub) handleStartGame(u *user.User) error {
 // Removes the user from its group if there is one
 func (hub *Hub) removeUser(user *user.User) {
 	hub.handleLeave(user)
-	user.CloseConn()
+	user.Cleanup()
 }
 
 // Get the group associated with the given id

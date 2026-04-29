@@ -41,11 +41,9 @@ func NewUser(conn *websocket.Conn) User {
 
 // Init the buffered channel to listen for write messages
 func (user *User) InitWriteMessageCh() {
-	defer close(user.ch)
-
 	for p := range user.ch {
 		if user.conn == nil {
-			return
+			continue
 		}
 
 		if err := user.conn.WriteMessage(websocket.TextMessage, p); err != nil {
@@ -59,8 +57,10 @@ func (user *User) SendMsg(msg string) {
 	user.ch <- []byte(msg)
 }
 
-func (user *User) CloseConn() {
+// Close websocket connection and closes the ch
+func (user *User) Cleanup() {
 	if user.conn != nil {
 		user.conn.Close()
 	}
+	close(user.ch)
 }
