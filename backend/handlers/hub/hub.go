@@ -154,8 +154,8 @@ func (hub *Hub) newGroup() *group.Group {
 	return &group
 }
 
-// Handles random matchmaking
-func (hub *Hub) handleMatch(user *user.User) {}
+// TODO: Handles random matchmaking
+func (hub *Hub) handleMatch(u *user.User) {}
 
 /*
 Handles websocket message.
