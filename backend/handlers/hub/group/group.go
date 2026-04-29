@@ -3,6 +3,7 @@ package group
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"log"
 	"maps"
 	"strings"
@@ -16,6 +17,7 @@ type Group struct {
 	mu            sync.RWMutex
 	id            string
 	users         map[string]*user.User
+	leaderId      *string
 	data          models.Data
 	progress      map[string]*models.Progress
 	isGameRunning bool
@@ -45,6 +47,10 @@ func (group *Group) AddUser(u *user.User) {
 
 	group.users[u.Id()] = u
 	u.GroupId = &group.id
+
+	if group.leaderId == nil {
+		group.newLeader()
+	}
 }
 
 // Removes the given user to this grouptitle
@@ -56,6 +62,11 @@ func (group *Group) RemoveUser(u *user.User) bool {
 
 	delete(group.users, u.Id())
 	u.GroupId = nil
+
+	userId := u.Id()
+	if *group.leaderId == userId {
+		group.newLeader()
+	}
 
 	return len(group.users) == 0
 }
@@ -93,6 +104,10 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) error
 	return nil
 }
 
+func (group *Group) UserStartGame(u *user.User) error {
+	return nil
+}
+
 // Sends a message to every user of this group
 func (group *Group) broadcast(msg string) {
 	users := group.GetUsersSnapshot()
@@ -123,7 +138,7 @@ func (group *Group) avgWpm() float64 {
 }
 
 // Starts the game and broadcasts updates every 1 second
-func (group *Group) StartGame() {
+func (group *Group) startGame() {
 	group.setGameRunning()
 	defer group.endGameRunning()
 	users := group.GetUsersSnapshot()
@@ -192,5 +207,20 @@ func broadcastUsers(users []*user.User, msg string) {
 		if u != nil {
 			u.SendMsg(msg)
 		}
+	}
+}
+
+// Sets a new leader
+// Leader is nil if there are no more available users
+func (group *Group) newLeader() {
+	userIds := maps.Keys(group.users)
+	next, _ := iter.Pull(userIds)
+
+	nextId, ok := next()
+
+	if ok {
+		group.leaderId = &nextId
+	} else {
+		group.leaderId = nil
 	}
 }

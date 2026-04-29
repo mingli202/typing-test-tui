@@ -1,4 +1,4 @@
-package group_test
+package group
 
 import (
 	"log"
@@ -6,16 +6,15 @@ import (
 	"slices"
 	"testing"
 	"time"
-	"tui/backend/handlers/hub/group"
 	"tui/backend/handlers/hub/user"
 	"tui/backend/services/data_provider"
 )
 
 var dataProvider, _ = data_provider.NewDataProvider()
 
-func newGroup() *group.Group {
+func newGroup() *Group {
 	data, _ := dataProvider.NewData()
-	group := group.NewGroup("asdf", data)
+	group := NewGroup("asdf", data)
 
 	return &group
 }
@@ -31,6 +30,10 @@ func TestNewGroup(t *testing.T) {
 
 	if len(users) != 0 {
 		t.Fatal("There should be no users")
+	}
+
+	if gr.leaderId != nil {
+		t.Fatal("leader id is not nil")
 	}
 }
 
@@ -50,10 +53,16 @@ func TestGroupAddUser(t *testing.T) {
 	if *u.GroupId != gr.Id() {
 		t.Fatal("user group should have been set to the group's id")
 	}
+}
+
+func TestGroupAddDuplicateUser(t *testing.T) {
+	u := user.NewUser(nil)
+	gr := newGroup()
 
 	gr.AddUser(&u)
+	gr.AddUser(&u)
 
-	users = gr.GetUsersSnapshot()
+	users := gr.GetUsersSnapshot()
 
 	if len(users) != 1 {
 		t.Fatal("Duplicate user tf")
@@ -153,5 +162,57 @@ func TestGetUsersSnapshot(t *testing.T) {
 
 	if userCount != len(users) {
 		t.Fatal("Total user count not equal to original")
+	}
+}
+
+func TestLeaderWhenAddUser(t *testing.T) {
+	u := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u)
+
+	if gr.leaderId == nil || *gr.leaderId != u.Id() {
+		t.Fatal("group leader id is not set to the user id")
+	}
+}
+
+func TestLeaderWhenAddMultipleUser(t *testing.T) {
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+
+	if gr.leaderId == nil || *gr.leaderId != u1.Id() {
+		t.Fatal("leader should have have stayed at the first user that joins")
+	}
+}
+
+func TestLeaderWhenRemoveUser1(t *testing.T) {
+	u := user.NewUser(nil)
+	gr := newGroup()
+
+	gr.AddUser(&u)
+	gr.RemoveUser(&u)
+
+	if gr.leaderId != nil {
+		t.Fatal("there should be no more available leader")
+	}
+}
+
+func TestLeaderWhenRemoveUser2(t *testing.T) {
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+	gr.RemoveUser(&u1)
+
+	if *gr.leaderId != u2.Id() {
+		t.Fatal("A new leader should be set")
 	}
 }
