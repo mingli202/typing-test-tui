@@ -43,13 +43,7 @@ func NewUser(conn *websocket.Conn) User {
 func (user *User) InitWriteMessageCh() {
 	defer close(user.ch)
 
-	for {
-		p, ok := <-user.ch
-
-		if !ok {
-			return
-		}
-
+	for p := range user.ch {
 		if user.conn == nil {
 			return
 		}
