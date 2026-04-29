@@ -104,7 +104,17 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) error
 	return nil
 }
 
+// Starts the game
 func (group *Group) UserStartGame(u *user.User) error {
+	group.mu.Lock()
+	defer group.mu.Unlock()
+
+	if *group.leaderId != u.Id() {
+		return fmt.Errorf("Only the leader can start the game")
+	}
+
+	go group.startGame()
+
 	return nil
 }
 
@@ -141,6 +151,7 @@ func (group *Group) avgWpm() float64 {
 func (group *Group) startGame() {
 	group.setGameRunning()
 	defer group.endGameRunning()
+
 	users := group.GetUsersSnapshot()
 
 	minWpm := 30

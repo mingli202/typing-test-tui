@@ -91,28 +91,24 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) bool {
 // Does nothing if the user's group can't be found
 // Return the error if any
 func (hub *Hub) handleUpdateStats(u *user.User, wpm float64, progress uint8) error {
-	if u.GroupId == nil {
-		return fmt.Errorf("User not in any group!")
+	userGroup, err := hub.getGroupOfUser(u)
+
+	if err != nil {
+		return err
 	}
 
-	group, ok := hub.getGroup(*u.GroupId)
-
-	if !ok {
-		return fmt.Errorf("Could not find any group with group id %s", group.Id())
-	}
-
-	return group.UpdateStats(u, wpm, progress)
+	return userGroup.UpdateStats(u, wpm, progress)
 }
 
 // Handles starting a game
 func (hub *Hub) handleStartGame(u *user.User) error {
-	if u.GroupId == nil {
-		return fmt.Errorf("User not in any group!")
+	userGroup, err := hub.getGroupOfUser(u)
+
+	if err != nil {
+		return err
 	}
 
-	group, ok := hub.getGroup(*u.GroupId)
-
-	return nil
+	return userGroup.UserStartGame(u)
 }
 
 // Removes the given user from the user repository
@@ -254,7 +250,9 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 		return "", err
 
 	case "StartGame":
-		hub.handleStartGame()
+		err := hub.handleStartGame(u)
+
+		return "", err
 
 	default:
 		return "", FunctionNotFoundError{Fn: function}
