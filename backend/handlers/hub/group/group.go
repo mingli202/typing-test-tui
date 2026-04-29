@@ -75,6 +75,21 @@ func (group *Group) RemoveUser(u *user.User) bool {
 	return len(group.users) == 0
 }
 
+// Gets a snapshot of the group's user ids
+func (group *Group) GetUserIdsSnapshot() []string {
+
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	snapShot := make([]string, 0)
+
+	for u := range maps.Values(group.users) {
+		snapShot = append(snapShot, u.Id())
+	}
+
+	return snapShot
+}
+
 // Gets list of users at this moment of calling this function
 func (group *Group) GetUsersSnapshot() []*user.User {
 	group.mu.RLock()
@@ -127,9 +142,14 @@ func (group *Group) UserStartGame(u *user.User) error {
 
 // Sends a message to every user of this group
 func (group *Group) broadcast(msg string) {
-	users := group.GetUsersSnapshot()
+	group.mu.RLock()
+	defer group.mu.RUnlock()
 
-	broadcastUsers(users, msg)
+	for _, u := range group.users {
+		if u != nil {
+			u.SendMsg(msg)
+		}
+	}
 }
 
 // avgWpm gets the average wpm of this group
@@ -159,8 +179,8 @@ func (group *Group) startGame() {
 	group.setGameRunning()
 	defer group.endGameRunning()
 
-	users := group.GetUsersSnapshot()
-	group.initProgressForUsers(users)
+	userIds := group.GetUserIdsSnapshot()
+	group.initProgressForUsers(userIds)
 
 	minWpm := 30
 	nWords := len(strings.Split(group.data.Text, " "))
@@ -179,7 +199,7 @@ func (group *Group) startGame() {
 				return
 			}
 
-			broadcastUsers(users, "ProgressUpdate "+string(progressBytes))
+			group.broadcastToUserWithId(userIds, "ProgressUpdate "+string(progressBytes))
 		case <-timer.C:
 			return
 		}
@@ -194,6 +214,10 @@ func (group *Group) countDown() {
 	for _ = range ticker {
 		group.broadcast(fmt.Sprintf("Countdown %v", countdown))
 		countdown -= 1
+
+		if countdown == 0 {
+			return
+		}
 	}
 }
 
@@ -225,8 +249,13 @@ func (group *Group) endGameRunning() {
 }
 
 // Broadcast the given message to the given slice of users
-func broadcastUsers(users []*user.User, msg string) {
-	for _, u := range users {
+func (group *Group) broadcastToUserWithId(userIds []string, msg string) {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	for _, userId := range userIds {
+		u := group.users[userId]
+
 		if u != nil {
 			u.SendMsg(msg)
 		}
@@ -249,11 +278,11 @@ func (group *Group) newLeader() {
 }
 
 // Initialize progress of the given users
-func (group *Group) initProgressForUsers(users []*user.User) {
+func (group *Group) initProgressForUsers(userIds []string) {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
-	for _, u := range users {
-		group.progress[u.Id()] = &models.Progress{}
+	for _, id := range userIds {
+		group.progress[id] = &models.Progress{}
 	}
 }
