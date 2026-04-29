@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"testing"
 	"tui/backend/handlers/hub/user"
+	"tui/backend/models"
 	"tui/backend/services/data_provider"
 
 	"github.com/gorilla/websocket"
@@ -33,17 +35,20 @@ func TestNewGroupId(t *testing.T) {
 }
 
 func TestHandleNewGroup(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	u := user.NewUser(nil)
 
-	groupId := hubInstance.handleNewGroup(&u)
+	lobby, err := hub.handleNewGroup(&u)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(hubInstance.groups) != 1 {
+	if len(hub.groups) != 1 {
 		t.Fatalf("Should have added a group")
 	}
 
-	group, ok := hubInstance.groups[groupId]
+	group, ok := hub.groups[lobby.LobbyId]
 
 	if !ok {
 		t.Fatalf("Why has the group not been added")
@@ -53,13 +58,16 @@ func TestHandleNewGroup(t *testing.T) {
 		t.Fatalf("User not been added")
 	}
 
-	groupId = hubInstance.handleNewGroup(&u)
+	lobby, err = hub.handleNewGroup(&u)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(hubInstance.groups) != 1 {
+	if len(hub.groups) != 1 {
 		t.Fatalf("Should have added a new group but old group is gone")
 	}
 
-	group2 := hubInstance.groups[groupId]
+	group2 := hub.groups[lobby.LobbyId]
 
 	if group2.Id() == group.Id() {
 		t.Fatalf("Impossible same group id")
@@ -71,36 +79,40 @@ func TestHandleNewGroup(t *testing.T) {
 }
 
 func TestJoin(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
 	user2 := user.NewUser(nil)
 
-	groupId1 := hubInstance.handleNewGroup(&user1)
-	group1, ok := hubInstance.getGroup(groupId1)
+	lobby1, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId1 := lobby1.LobbyId
+	group1, ok := hub.getGroup(groupId1)
 
 	if !ok {
 		t.Fatal("Where is the group??")
 	}
 
 	// user joins itself
-	ok = hubInstance.handleJoin(groupId1, &user1)
+	_, err = hub.handleJoin(groupId1, &user1)
 
-	if !ok {
+	if err != nil {
 		t.Fatal("Technically the user can in fact join its own group")
 	}
 
 	// user 2 joins valid group
-	ok = hubInstance.handleJoin(groupId1, &user2)
+	_, err = hub.handleJoin(groupId1, &user2)
 
-	if !ok {
+	if err != nil {
 		t.Fatalf("Join unsuccessful")
 	}
 
 	// user 1 joins invalid group
-	ok = hubInstance.handleJoin("ramdom groupId", &user1)
+	_, err = hub.handleJoin("ramdom groupId", &user1)
 
-	if ok {
+	if err == nil {
 		t.Fatalf("Group id not found, impossible")
 	}
 
@@ -109,16 +121,23 @@ func TestJoin(t *testing.T) {
 	}
 
 	// user1 makes another group
-	groupId2 := hubInstance.handleNewGroup(&user1)
-	group2 := hubInstance.groups[groupId2]
+	lobby2, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId2 := lobby2.LobbyId
+	group2 := hub.groups[groupId2]
 
 	if len(group1.GetUsersSnapshot()) != 1 {
 		t.Fatalf("User 1 should have left the first group")
 	}
 
-	hubInstance.handleJoin(groupId2, &user2)
+	_, err = hub.handleJoin(groupId2, &user2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(hubInstance.groups) != 1 {
+	if len(hub.groups) != 1 {
 		t.Fatal("Old group should have been removed")
 	}
 
@@ -130,7 +149,7 @@ func TestJoin(t *testing.T) {
 		t.Fatalf("Group1 should no longer have any users")
 	}
 
-	_, ok = hubInstance.groups[group1.Id()]
+	_, ok = hub.groups[group1.Id()]
 
 	if ok {
 		t.Fatalf("Group1 should have been deleted")
@@ -138,21 +157,25 @@ func TestJoin(t *testing.T) {
 }
 
 func TestHandleMessageNewGroup(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user := user.NewUser(nil)
 
 	msg := "NewGroup"
 
-	res, err := hubInstance.handleMessage([]byte(msg), &user)
+	res, err := hub.handleMessage([]byte(msg), &user)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	id := res
+	var lobby models.LobbyInfo
+	if err := json.Unmarshal([]byte(res), &lobby); err != nil {
+		t.Fatal(err)
+	}
+	id := lobby.LobbyId
 
-	group, ok := hubInstance.groups[id]
+	group, ok := hub.groups[id]
 
 	if !ok {
 		t.Fatal("Id returned an invalid group")
@@ -164,33 +187,36 @@ func TestHandleMessageNewGroup(t *testing.T) {
 }
 
 func TestHandleMessageJoinGroup(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
 
-	groupId := hubInstance.handleNewGroup(&user1)
+	lobby, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
 
 	user2 := user.NewUser(nil)
 
 	msg := "JoinGroup " + groupId
 
-	res, err := hubInstance.handleMessage([]byte(msg), &user2)
+	res, err := hub.handleMessage([]byte(msg), &user2)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	success, err := strconv.ParseBool(res)
-
-	if err != nil {
+	var joinLobby models.LobbyInfo
+	if err := json.Unmarshal([]byte(res), &joinLobby); err != nil {
 		t.Fatal(err)
 	}
 
-	if success == false {
-		t.Fatal("Unsuccessful join")
+	if joinLobby.LobbyId != groupId {
+		t.Fatal("join returned wrong lobby id")
 	}
 
-	group := hubInstance.groups[groupId]
+	group := hub.groups[groupId]
 
 	if len(group.GetUsersSnapshot()) != 2 {
 		t.Fatal("Group does not have 2 users")
@@ -198,19 +224,26 @@ func TestHandleMessageJoinGroup(t *testing.T) {
 }
 
 func TestHandleMessageLeaveGroup(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
 
-	groupId := hubInstance.handleNewGroup(&user1)
+	lobby, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
 
 	user2 := user.NewUser(nil)
 
-	hubInstance.handleJoin(groupId, &user2)
+	_, err = hub.handleJoin(groupId, &user2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	msg := "LeaveGroup"
 
-	res, err := hubInstance.handleMessage([]byte(msg), &user2)
+	res, err := hub.handleMessage([]byte(msg), &user2)
 
 	if err != nil {
 		t.Fatal(err)
@@ -226,13 +259,13 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal("Unsuccessful leave")
 	}
 
-	group := hubInstance.groups[groupId]
+	group := hub.groups[groupId]
 
 	if len(group.GetUsersSnapshot()) != 1 {
 		t.Fatal("Group does not have 1 user")
 	}
 
-	res, _ = hubInstance.handleMessage([]byte(msg), &user1)
+	res, _ = hub.handleMessage([]byte(msg), &user1)
 	success, _ = strconv.ParseBool(res)
 	if success == false {
 		t.Fatal("Unsuccessful leave")
@@ -242,24 +275,31 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal("Group does not have 0 user")
 	}
 
-	if _, ok := hubInstance.groups[groupId]; ok {
+	if _, ok := hub.groups[groupId]; ok {
 		t.Fatal("Group did not get removed")
 	}
 }
 
 func TestRemoveUser(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
 	user2 := user.NewUser(nil)
 	user3 := user.NewUser(nil)
 
-	groupId1 := hubInstance.handleNewGroup(&user1)
-	hubInstance.handleJoin(groupId1, &user2)
+	lobby, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId1 := lobby.LobbyId
+	_, err = hub.handleJoin(groupId1, &user2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	hubInstance.removeUser(&user1)
+	hub.removeUser(&user1)
 
-	group1, ok := hubInstance.getGroup(groupId1)
+	group1, ok := hub.getGroup(groupId1)
 
 	if !ok {
 		t.Fatal("Where tf is the group??")
@@ -269,40 +309,47 @@ func TestRemoveUser(t *testing.T) {
 		t.Fatal("User1 did not get removed from its group")
 	}
 
-	hubInstance.removeUser(&user2)
+	hub.removeUser(&user2)
 
-	if _, ok = hubInstance.getGroup(groupId1); ok {
+	if _, ok = hub.getGroup(groupId1); ok {
 		t.Fatal("Group1 should have been removed")
 	}
 
-	hubInstance.removeUser(&user3) // don't crash pls
+	hub.removeUser(&user3) // don't crash pls
 }
 
 func TestHandleLeaveWithoutGroup(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 	user := user.NewUser(nil)
 
-	if hubInstance.handleLeave(&user) {
+	if hub.handleLeave(&user) {
 		t.Fatal("leave should fail for user that is not in a group")
 	}
 }
 
 func TestLeaveHelperMatchesHandleLeaveBehavior(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
 	user2 := user.NewUser(nil)
 
-	groupId := hubInstance.handleNewGroup(&user1)
-	hubInstance.handleJoin(groupId, &user2)
+	lobby, err := hub.handleNewGroup(&user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
+	_, err = hub.handleJoin(groupId, &user2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	success := hubInstance.handleLeave(&user2)
+	success := hub.handleLeave(&user2)
 
 	if !success {
 		t.Fatal("leave helper should remove a user that belongs to a group")
 	}
 
-	group, ok := hubInstance.getGroup(groupId)
+	group, ok := hub.getGroup(groupId)
 	if !ok {
 		t.Fatal("group should still exist because user1 is still in it")
 	}
@@ -313,7 +360,7 @@ func TestLeaveHelperMatchesHandleLeaveBehavior(t *testing.T) {
 }
 
 func TestHandleMessageJoinGroupBadFormat(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 	user := user.NewUser(nil)
 
 	cases := []string{
@@ -322,7 +369,7 @@ func TestHandleMessageJoinGroupBadFormat(t *testing.T) {
 	}
 
 	for _, msg := range cases {
-		_, err := hubInstance.handleMessage([]byte(msg), &user)
+		_, err := hub.handleMessage([]byte(msg), &user)
 		if err == nil {
 			t.Fatalf("expected error for %q", msg)
 		}
@@ -330,10 +377,10 @@ func TestHandleMessageJoinGroupBadFormat(t *testing.T) {
 }
 
 func TestHandleMessageUnknownFunction(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 	user := user.NewUser(nil)
 
-	_, err := hubInstance.handleMessage([]byte("DoesNotExist"), &user)
+	_, err := hub.handleMessage([]byte("DoesNotExist"), &user)
 	if err == nil {
 		t.Fatal("expected FunctionNotFoundError")
 	}
@@ -345,10 +392,10 @@ func TestHandleMessageUnknownFunction(t *testing.T) {
 }
 
 func TestHandleMessageEmptyInput(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 	user := user.NewUser(nil)
 
-	_, err := hubInstance.handleMessage([]byte(""), &user)
+	_, err := hub.handleMessage([]byte(""), &user)
 	if err == nil {
 		t.Fatal("expected error for empty message")
 	}
@@ -364,13 +411,21 @@ func TestHandleMessageEmptyInput(t *testing.T) {
 }
 
 func TestConcurrentJoinStability(t *testing.T) {
-	hubInstance := newHub(dataProvider)
+	hub := newHub(dataProvider)
 
 	anchor1 := user.NewUser(nil)
-	groupId1 := hubInstance.handleNewGroup(&anchor1)
+	lobby1, err := hub.handleNewGroup(&anchor1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId1 := lobby1.LobbyId
 
 	anchor2 := user.NewUser(nil)
-	groupId2 := hubInstance.handleNewGroup(&anchor2)
+	lobby2, err := hub.handleNewGroup(&anchor2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupId2 := lobby2.LobbyId
 
 	const nUsers = 24
 	const nIterations = 200
@@ -394,8 +449,8 @@ func TestConcurrentJoinStability(t *testing.T) {
 					targetGroupID = groupId2
 				}
 
-				ok := hubInstance.handleJoin(targetGroupID, u)
-				if !ok {
+				_, err := hub.handleJoin(targetGroupID, u)
+				if err != nil {
 					t.Errorf("join should succeed for valid group %s", targetGroupID)
 					return
 				}
@@ -405,12 +460,12 @@ func TestConcurrentJoinStability(t *testing.T) {
 
 	wg.Wait()
 
-	group1, ok := hubInstance.getGroup(groupId1)
+	group1, ok := hub.getGroup(groupId1)
 	if !ok {
 		t.Fatal("group1 should still exist")
 	}
 
-	group2, ok := hubInstance.getGroup(groupId2)
+	group2, ok := hub.getGroup(groupId2)
 	if !ok {
 		t.Fatal("group2 should still exist")
 	}
@@ -431,7 +486,11 @@ func TestNewGroupWithConn(t *testing.T) {
 	defer conn1.Close()
 
 	res := sendMsg(t, conn1, "NewGroup")
-	groupId := string(res)
+	var lobby models.LobbyInfo
+	if err := json.Unmarshal(res, &lobby); err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
 
 	if _, ok := hub.groups[groupId]; !ok {
 		t.Fatal("NewGroup did not respond with groupid")
@@ -452,13 +511,18 @@ func TestJoinGroupWithConn(t *testing.T) {
 	defer conn3.Close()
 
 	res := sendMsg(t, conn1, "NewGroup")
-	groupId := string(res)
+	var lobby models.LobbyInfo
+	if err := json.Unmarshal(res, &lobby); err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
 
-	if ok, err := strconv.ParseBool(string(sendMsg(t, conn2, "JoinGroup "+groupId))); err != nil || !ok {
+	var joinedLobby models.LobbyInfo
+	if err := json.Unmarshal(sendMsg(t, conn2, "JoinGroup "+groupId), &joinedLobby); err != nil || joinedLobby.LobbyId != groupId {
 		t.Fatal("User 2 should be able to join group")
 	}
 
-	if ok, err := strconv.ParseBool(string(sendMsg(t, conn3, "JoinGroup "+groupId))); err != nil || !ok {
+	if err := json.Unmarshal(sendMsg(t, conn3, "JoinGroup "+groupId), &joinedLobby); err != nil || joinedLobby.LobbyId != groupId {
 		t.Fatal("User 3 should be able to join group")
 	}
 }
@@ -477,7 +541,11 @@ func TestLeaveGroupNoCrash(t *testing.T) {
 	defer conn3.Close()
 
 	res := sendMsg(t, conn1, "NewGroup")
-	groupId := string(res)
+	var lobby models.LobbyInfo
+	if err := json.Unmarshal(res, &lobby); err != nil {
+		t.Fatal(err)
+	}
+	groupId := lobby.LobbyId
 
 	sendMsg(t, conn2, "JoinGroup "+groupId)
 	sendMsg(t, conn3, "JoinGroup "+groupId)
