@@ -138,6 +138,7 @@ func (group *Group) UserStartGame(u *user.User) error {
 	return nil
 }
 
+// As a lobby snapshot
 func (group *Group) AsLobbySnapshot() models.LobbyInfo {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
@@ -161,6 +162,26 @@ func (group *Group) AsLobbySnapshot() models.LobbyInfo {
 	}
 
 	return lobby
+}
+
+// Broadcast the given message to the given slice of users
+// Return if at least one user got the message
+func (group *Group) BroadcastToUserWithId(userIds []string, msg string) bool {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	count := 0
+
+	for _, userId := range userIds {
+		u := group.users[userId]
+
+		if u != nil {
+			u.SendMsg(msg)
+			count += 1
+		}
+	}
+
+	return count > 0
 }
 
 // Sends a message to every user of this group
@@ -222,7 +243,7 @@ func (group *Group) startGame() {
 				return
 			}
 
-			atLeastOneSend := group.broadcastToUserWithId(userIds, "ProgressUpdate "+string(progressBytes))
+			atLeastOneSend := group.BroadcastToUserWithId(userIds, "ProgressUpdate "+string(progressBytes))
 
 			if !atLeastOneSend {
 				return
@@ -277,26 +298,6 @@ func (group *Group) endGameRunning() {
 	defer group.mu.Unlock()
 
 	group.isGameRunning = false
-}
-
-// Broadcast the given message to the given slice of users
-// Return if at least one user got the message
-func (group *Group) broadcastToUserWithId(userIds []string, msg string) bool {
-	group.mu.RLock()
-	defer group.mu.RUnlock()
-
-	count := 0
-
-	for _, userId := range userIds {
-		u := group.users[userId]
-
-		if u != nil {
-			u.SendMsg(msg)
-			count += 1
-		}
-	}
-
-	return count > 0
 }
 
 // Sets a new leader
