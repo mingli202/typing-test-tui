@@ -31,7 +31,6 @@ func (user *User) AvgWpm() float64 {
 func NewUser(conn *websocket.Conn) User {
 	user := User{
 		conn:    conn,
-		ch:      make(chan []byte, 10),
 		id:      uuid.NewString(),
 		GroupId: nil,
 	}
@@ -41,6 +40,8 @@ func NewUser(conn *websocket.Conn) User {
 
 // Init the buffered channel to listen for write messages
 func (user *User) InitWriteMessageCh() {
+	user.ch = make(chan []byte)
+
 	for p := range user.ch {
 		if user.conn == nil {
 			continue
@@ -54,7 +55,9 @@ func (user *User) InitWriteMessageCh() {
 
 // Helper method to send a string of message
 func (user *User) SendMsg(msg string) {
-	user.ch <- []byte(msg)
+	if user.ch != nil {
+		user.ch <- []byte(msg)
+	}
 }
 
 // Close websocket connection and closes the ch
