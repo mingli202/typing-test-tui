@@ -485,11 +485,9 @@ func TestNewGroupWithConn(t *testing.T) {
 	conn1 := newTestConn(t, server)
 	defer conn1.Close()
 
-	res := sendMsg(t, conn1, "NewGroup")
+	sendMsg(t, conn1, "NewGroup")
 	var lobby models.LobbyInfo
-	if err := json.Unmarshal(res, &lobby); err != nil {
-		t.Fatal(err)
-	}
+	recvMsgJson(t, conn1, &lobby)
 	groupId := lobby.LobbyId
 
 	if _, ok := hub.groups[groupId]; !ok {
@@ -510,21 +508,28 @@ func TestJoinGroupWithConn(t *testing.T) {
 	defer conn2.Close()
 	defer conn3.Close()
 
-	res := sendMsg(t, conn1, "NewGroup")
+	sendMsg(t, conn1, "NewGroup")
+
 	var lobby models.LobbyInfo
-	if err := json.Unmarshal(res, &lobby); err != nil {
-		t.Fatal(err)
-	}
+	recvMsgJson(t, conn1, &lobby)
+
 	groupId := lobby.LobbyId
 
+	sendMsg(t, conn2, "JoinGroup "+groupId)
 	var joinedLobby models.LobbyInfo
-	if err := json.Unmarshal(sendMsg(t, conn2, "JoinGroup "+groupId), &joinedLobby); err != nil || joinedLobby.LobbyId != groupId {
+	recvMsgJson(t, conn2, &joinedLobby)
+
+	if joinedLobby.LobbyId != groupId {
 		t.Fatal("User 2 should be able to join group")
 	}
 
-	if err := json.Unmarshal(sendMsg(t, conn3, "JoinGroup "+groupId), &joinedLobby); err != nil || joinedLobby.LobbyId != groupId {
+	sendMsg(t, conn2, "JoinGroup "+groupId)
+	recvMsgJson(t, conn2, &joinedLobby)
+
+	if joinedLobby.LobbyId != groupId {
 		t.Fatal("User 3 should be able to join group")
 	}
+
 }
 
 func TestLeaveGroupNoCrash(t *testing.T) {
@@ -540,11 +545,10 @@ func TestLeaveGroupNoCrash(t *testing.T) {
 	defer conn2.Close()
 	defer conn3.Close()
 
-	res := sendMsg(t, conn1, "NewGroup")
+	sendMsg(t, conn1, "NewGroup")
 	var lobby models.LobbyInfo
-	if err := json.Unmarshal(res, &lobby); err != nil {
-		t.Fatal(err)
-	}
+	recvMsgJson(t, conn1, &lobby)
+
 	groupId := lobby.LobbyId
 
 	sendMsg(t, conn2, "JoinGroup "+groupId)
@@ -564,11 +568,13 @@ func newTestConn(t *testing.T, server *httptest.Server) *websocket.Conn {
 	return conn
 }
 
-func sendMsg(t *testing.T, conn *websocket.Conn, msg string) []byte {
+func sendMsg(t *testing.T, conn *websocket.Conn, msg string) {
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
 		t.Fatal(err)
 	}
+}
 
+func recvMsgJson[T any](t *testing.T, conn *websocket.Conn, v T) T {
 	msgType, res, err := conn.ReadMessage()
 
 	if msgType != websocket.TextMessage {
@@ -578,5 +584,9 @@ func sendMsg(t *testing.T, conn *websocket.Conn, msg string) []byte {
 		t.Fatal(err)
 	}
 
-	return res
+	if err = json.Unmarshal(res, v); err != nil {
+		t.Fatal("Unmarshal error")
+	}
+
+	return v
 }
