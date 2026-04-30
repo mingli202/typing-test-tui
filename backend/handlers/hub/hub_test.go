@@ -71,9 +71,7 @@ func (fakeClient *FakeClient) listen(conn *websocket.Conn) {
 			playersStr := strings.Join(msg[1:], " ")
 
 			var players map[string]models.PlayerInfo
-			err := json.Unmarshal([]byte(playersStr), &players)
-
-			if err != nil {
+			if err := json.Unmarshal([]byte(playersStr), &players); err != nil {
 				continue
 			}
 
@@ -86,9 +84,7 @@ func (fakeClient *FakeClient) listen(conn *websocket.Conn) {
 			lobbyStr := strings.Join(msg[1:], " ")
 
 			var lobbyInfo models.LobbyInfo
-			err := json.Unmarshal([]byte(lobbyStr), &lobbyInfo)
-
-			if err != nil {
+			if err := json.Unmarshal([]byte(lobbyStr), &lobbyInfo); err != nil {
 				continue
 			}
 
@@ -128,6 +124,14 @@ func (fakeClient *FakeClient) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
 func (fakeClient *FakeClient) cleanup() {
 	fakeClient.stop <- struct{}{}
 	close(fakeClient.stop)
+}
+
+func (fakeClient *FakeClient) sendMsg(t *testing.T, msg string) {
+	if err := fakeClient.conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
 }
 
 var dataProvider, _ = data_provider.NewDataProvider()
@@ -614,56 +618,44 @@ func TestJoinGroupWithConn(t *testing.T) {
 	server := httptest.NewServer(&hub)
 	defer server.Close()
 
-	conn1 := newTestConn(t, server)
-	conn2 := newTestConn(t, server)
-	conn3 := newTestConn(t, server)
-	defer conn1.Close()
-	defer conn2.Close()
-	defer conn3.Close()
+	fakeClient1 := newFakeClient(t, server)
+	fakeClient2 := newFakeClient(t, server)
+	fakeClient3 := newFakeClient(t, server)
 
-	sendMsg(t, conn1, "NewGroup")
+	defer fakeClient1.cleanup()
+	defer fakeClient2.cleanup()
+	defer fakeClient3.cleanup()
 
-	var lobby models.LobbyInfo
-	recvMsgJson(t, conn1, &lobby)
+	fakeClient1.sendMsg(t, "NewGroup")
 
-	groupId := lobby.LobbyId
+	groupId := fakeClient1.lobbyInfo.LobbyId
 
 	// User2 join group
-	sendMsg(t, conn2, "JoinGroup "+groupId)
-	var joinedLobby2 models.LobbyInfo
-	recvMsgJson(t, conn2, &joinedLobby2)
+	fakeClient2.sendMsg(t, "JoinGroup "+groupId)
 
-	if joinedLobby2.LobbyId != groupId {
+	if fakeClient2.lobbyInfo.LobbyId != groupId {
 		t.Fatal("User 2 should be able to join group")
 	}
 
 	// User1 should have received join notice
-	var players map[string]models.PlayerInfo
-	recvMsgJson(t, conn1, &players)
 
-	if len(players) != 2 {
+	if len(fakeClient1.players) != 2 {
 		t.Fatal("User1 did not receive join notice")
 	}
 
 	// User3 join group
-	var joinedLobby3 models.LobbyInfo
-	sendMsg(t, conn3, "JoinGroup "+groupId)
-	recvMsgJson(t, conn3, &joinedLobby3)
+	fakeClient3.sendMsg(t, "JoinGroup "+groupId)
 
-	if joinedLobby3.LobbyId != groupId {
+	if fakeClient3.lobbyInfo.LobbyId != groupId {
 		t.Fatal("User 3 should be able to join group")
 	}
 
-	// User2 and user 1 should also have received
-	recvMsgJson(t, conn2, &joinedLobby2)
-
-	if len(joinedLobby2.Players) != 3 {
+	// User1 and user2 should also have received
+	if len(fakeClient1.players) != 3 {
 		t.Fatal("User 2 should have recieved new lobby")
 	}
 
-	recvMsgJson(t, conn1, &lobby)
-
-	if len(lobby.Players) != 3 {
+	if len(fakeClient2.players) != 3 {
 		t.Fatal("User 2 should have recieved new lobby")
 	}
 
