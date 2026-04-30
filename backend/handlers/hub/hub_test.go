@@ -286,7 +286,7 @@ func TestHandleMessageNewGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lobbyStr := strings.Split(res, " ")[1]
+	lobbyStr := strings.Join(strings.Split(res, " ")[1:], " ")
 
 	var lobby models.LobbyInfo
 	if err := json.Unmarshal([]byte(lobbyStr), &lobby); err != nil {
@@ -326,7 +326,7 @@ func TestHandleMessageJoinGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lobbyStr := strings.Split(res, " ")[1]
+	lobbyStr := strings.Join(strings.Split(res, " ")[1:], " ")
 
 	var joinLobby models.LobbyInfo
 	if err := json.Unmarshal([]byte(lobbyStr), &joinLobby); err != nil {
