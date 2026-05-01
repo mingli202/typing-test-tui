@@ -249,3 +249,35 @@ func TestCountDown(t *testing.T) {
 		t.Fatal("Group should be empty now")
 	}
 }
+
+func TestStartGame(t *testing.T) {
+	ch1 := make(chan []byte)
+	ch2 := make(chan []byte)
+
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	u3 := user.NewUser(nil)
+
+	u1.SetCh(ch1)
+	u2.SetCh(ch2)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+
+	go gr.startGame()
+
+	time.Sleep(1 * time.Millisecond)
+	gr.AddUser(&u3)
+
+	userIds := gr.GetUserIdsSnapshot()
+
+	if len(userIds) != 3 {
+		t.Fatal("Group can still add users")
+	}
+
+	if _, ok := gr.playerInfo[u3.Id()]; ok {
+		t.Fatal("user3 should have not have been added to progress")
+	}
+}
