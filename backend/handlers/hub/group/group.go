@@ -139,7 +139,7 @@ func (group *Group) UserStartGame(u *user.User) error {
 }
 
 // As a lobby snapshot
-func (group *Group) AsLobbySnapshot() models.LobbyInfo {
+func (group *Group) GetLobbyInfo() models.LobbyInfo {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 

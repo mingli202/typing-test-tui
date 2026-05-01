@@ -84,7 +84,7 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, erro
 
 	group.AddUser(u)
 
-	lobbyInfo := group.AsLobbySnapshot()
+	lobbyInfo := group.GetLobbyInfo()
 
 	return lobbyInfo, nil
 }
