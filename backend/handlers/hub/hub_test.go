@@ -11,13 +11,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"tui/backend/handlers/hub/user"
 	"tui/backend/models"
 	"tui/backend/services/data_provider"
 )
 
-// A mock user
-type MockUser struct {
+// A mock client
+type MockClient struct {
 	mu        sync.Mutex
 	players   map[string]models.PlayerInfo
 	lobbyInfo models.LobbyInfo
@@ -26,46 +27,61 @@ type MockUser struct {
 	wg        sync.WaitGroup
 }
 
-func newMockUser(t *testing.T) *MockUser {
+func newMockClient() *MockClient {
 	u := user.NewUser(nil)
 
 	ch := make(chan []byte)
 
 	u.SetCh(ch)
 
-	mockUser := MockUser{
+	mockClient := MockClient{
 		u:  u,
 		ch: ch,
 	}
 
-	return &mockUser
+	return &mockClient
 }
 
-func (mockUser *MockUser) listenForMsg(t *testing.T) {
-	mockUser.wg.Go(func() {
-		log.Println("Waiting for msg")
-		p := <-mockUser.ch
-		msg := string(p)
-		log.Println("msg received " + msg)
-
-		mockUser.handleMsg(t, msg)
-	})
+func (mockClient *MockClient) close() {
+	close(mockClient.ch)
 }
 
-func (mockUser *MockUser) listenForMsgN(t *testing.T, n int) {
-	mockUser.wg.Go(func() {
-		for i := 0; i < n; i += 1 {
-			log.Println("Waiting for msg")
-			p := <-mockUser.ch
+func (mockClient *MockClient) listen(t *testing.T) {
+	go func() {
+		for p := range mockClient.ch {
 			msg := string(p)
 			log.Println("msg received " + msg)
 
-			mockUser.handleMsg(t, msg)
+			mockClient.handleMsg(t, msg)
+		}
+	}()
+}
+
+func (mockClient *MockClient) listenForMsg(t *testing.T) {
+	mockClient.wg.Go(func() {
+		log.Println("Waiting for msg")
+		p := <-mockClient.ch
+		msg := string(p)
+		log.Println("msg received " + msg)
+
+		mockClient.handleMsg(t, msg)
+	})
+}
+
+func (mockClient *MockClient) listenForMsgN(t *testing.T, n int) {
+	mockClient.wg.Go(func() {
+		for i := 0; i < n; i += 1 {
+			log.Println("Waiting for msg")
+			p := <-mockClient.ch
+			msg := string(p)
+			log.Println("msg received " + msg)
+
+			mockClient.handleMsg(t, msg)
 		}
 	})
 }
 
-func (mockUser *MockUser) handleMsg(t *testing.T, msg string) {
+func (mockClient *MockClient) handleMsg(t *testing.T, msg string) {
 	msgArr := strings.Split(msg, " ")
 
 	if len(msg) < 1 {
@@ -87,7 +103,7 @@ func (mockUser *MockUser) handleMsg(t *testing.T, msg string) {
 			t.Fatalf("unmarshal error: %v", err)
 		}
 
-		mockUser.updatePlayers(players)
+		mockClient.updatePlayers(players)
 	case "LobbyInfo":
 		if len(msg) < 2 {
 			t.Fatalf("msg doesn't have payload: %v", msg)
@@ -100,40 +116,40 @@ func (mockUser *MockUser) handleMsg(t *testing.T, msg string) {
 			t.Fatalf("unmarshal error: %v", err)
 		}
 
-		mockUser.updateLobbyInfo(lobbyInfo)
+		mockClient.updateLobbyInfo(lobbyInfo)
 	}
 }
 
-func (mockUser *MockUser) waitForMsg() {
-	mockUser.wg.Wait()
+func (mockClient *MockClient) waitForMsg() {
+	mockClient.wg.Wait()
 }
 
-func (mockUser *MockUser) getPlayers() map[string]models.PlayerInfo {
-	mockUser.mu.Lock()
-	defer mockUser.mu.Unlock()
+func (mockClient *MockClient) getPlayers() map[string]models.PlayerInfo {
+	mockClient.mu.Lock()
+	defer mockClient.mu.Unlock()
 
-	return maps.Clone(mockUser.players)
+	return maps.Clone(mockClient.players)
 }
 
-func (mockUser *MockUser) getLobbyInfo() models.LobbyInfo {
-	mockUser.mu.Lock()
-	defer mockUser.mu.Unlock()
+func (mockClient *MockClient) getLobbyInfo() models.LobbyInfo {
+	mockClient.mu.Lock()
+	defer mockClient.mu.Unlock()
 
-	return mockUser.lobbyInfo
+	return mockClient.lobbyInfo
 }
 
-func (mockUser *MockUser) updatePlayers(players map[string]models.PlayerInfo) {
-	mockUser.mu.Lock()
-	defer mockUser.mu.Unlock()
+func (mockClient *MockClient) updatePlayers(players map[string]models.PlayerInfo) {
+	mockClient.mu.Lock()
+	defer mockClient.mu.Unlock()
 
-	mockUser.players = players
+	mockClient.players = players
 }
 
-func (mockUser *MockUser) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
-	mockUser.mu.Lock()
-	defer mockUser.mu.Unlock()
+func (mockClient *MockClient) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
+	mockClient.mu.Lock()
+	defer mockClient.mu.Unlock()
 
-	mockUser.lobbyInfo = lobbyInfo
+	mockClient.lobbyInfo = lobbyInfo
 }
 
 var dataProvider, _ = data_provider.NewDataProvider()
@@ -602,55 +618,84 @@ func TestConcurrentJoinStability(t *testing.T) {
 func TestNewGroupWithSync(t *testing.T) {
 	hub := newHub(dataProvider)
 
-	mockUser := newMockUser(t)
+	mockClient := newMockClient()
 
-	mockUser.listenForMsgN(t, 2) // expects 2 msg
+	mockClient.listen(t)
+	defer mockClient.close()
 
-	mockClientMsg(t, &hub, mockUser, "NewGroup")
+	mockClientMsg(t, &hub, mockClient, "NewGroup")
 
-	mockUser.waitForMsg()
-
-	groupId := mockUser.getLobbyInfo().LobbyId
+	groupId := mockClient.getLobbyInfo().LobbyId
 
 	if _, ok := hub.groups[groupId]; !ok {
 		t.Fatal("NewGroup did not respond with groupid")
 	}
 
-	if len(mockUser.players) != 1 {
+	if len(mockClient.players) != 1 {
 		t.Fatal("user1 did not get players notice")
 	}
 }
 
 func TestJoinGroupWithSync(t *testing.T) {
 	hub := newHub(dataProvider)
-	mockUser1 := newMockUser(t)
-	mockUser1.listenForMsgN(t, 2)
-	mockClientMsg(t, &hub, mockUser1, "NewGroup")
-	mockUser1.waitForMsg()
-	groupId := mockUser1.getLobbyInfo().LobbyId
+	mockClient1 := newMockClient()
+	mockClient2 := newMockClient()
 
-	mockUser2 := newMockUser(t)
+	mockClient1.listen(t)
+	mockClient2.listen(t)
+	defer mockClient1.close()
+	defer mockClient2.close()
 
-	// user1 should receive update players
-	mockUser1.listenForMsg(t)
+	mockClientMsg(t, &hub, mockClient1, "NewGroup")
+	groupId := mockClient1.getLobbyInfo().LobbyId
 
-	// user2 should receive lobby info and player info
-	mockUser2.listenForMsgN(t, 2)
+	mockClientMsg(t, &hub, mockClient2, "JoinGroup "+groupId)
 
-	mockClientMsg(t, &hub, mockUser2, "JoinGroup "+groupId)
-
-	mockUser1.waitForMsg()
-	mockUser2.waitForMsg()
-
-	if len(mockUser1.players) != 2 {
+	if len(mockClient1.players) != 2 {
 		t.Fatal("user1 did not receive player update")
 	}
-	if len(mockUser2.players) != 2 {
+	if len(mockClient2.players) != 2 {
 		t.Fatal("user1 did not receive player update")
 	}
 }
 
-func mockClientMsg(t *testing.T, hub *Hub, mockUser *MockUser, msg string) {
+func TestLeaveGroupWithSync(t *testing.T) {
+	hub := newHub(dataProvider)
+
+	mockClient1 := newMockClient()
+	mockClient2 := newMockClient()
+	mockClient3 := newMockClient()
+
+	mockClient1.listen(t)
+	mockClient2.listen(t)
+	mockClient3.listen(t)
+	defer mockClient1.close()
+	defer mockClient2.close()
+	defer mockClient3.close()
+
+	mockClientMsg(t, &hub, mockClient1, "NewGroup")
+
+	groupId := mockClient1.lobbyInfo.LobbyId
+
+	mockClientMsg(t, &hub, mockClient2, "JoinGroup "+groupId)
+	mockClientMsg(t, &hub, mockClient3, "JoinGroup "+groupId)
+
+	// assert leader first
+	if !mockClient2.players[mockClient1.u.Id()].IsLeader {
+		t.Fatal("Leader is not user1")
+	}
+	mockClientMsg(t, &hub, mockClient1, "LeaveGroup")
+
+	if len(mockClient2.players) != 2 {
+		t.Fatal("user2 players did not get updated")
+	}
+
+	if len(mockClient3.players) != 2 {
+		t.Fatal("user3 players did not get updated")
+	}
+}
+
+func mockClientMsg(t *testing.T, hub *Hub, mockUser *MockClient, msg string) {
 	u := mockUser.u
 
 	res, err := hub.handleMessage([]byte(msg), &u)
@@ -660,4 +705,6 @@ func mockClientMsg(t *testing.T, hub *Hub, mockUser *MockUser, msg string) {
 	} else if res != "" {
 		u.SendMsg(res)
 	}
+
+	time.Sleep(time.Millisecond * 10)
 }
