@@ -218,8 +218,8 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 			return "", err
 		}
 
-		str, marshalErr := json.Marshal(lobbyInfo)
-		if marshalErr != nil {
+		str, err := lobbyInfo.ToMsg()
+		if err != nil {
 			return "", err
 		}
 
