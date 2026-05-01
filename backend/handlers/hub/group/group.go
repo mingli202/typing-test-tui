@@ -105,7 +105,7 @@ func (group *Group) GetUsersSnapshot() []*user.User {
 // Update the running game's stats
 // If there is no game, it does nothing
 // Returns an error if the game is not running
-func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) error {
+func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8) error {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
@@ -115,7 +115,7 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progress uint8) error
 
 	if p, ok := group.progress[u.Id()]; ok {
 		p.Wpm = wpm
-		p.Progress = progress
+		p.ProgressPercent = progressPercent
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (group *Group) startGame() {
 
 			atLeastOneSend := group.broadcastToUserWithId(userIds, "ProgressUpdate "+string(progressBytes))
 
-			if !atLeastOneSend {
+			if !atLeastOneSend || group.isGameCompleted() {
 				return
 			}
 
@@ -366,4 +366,19 @@ func (group *Group) initProgressForUsers(userIds []string) {
 	for _, id := range userIds {
 		group.progress[id] = &models.Progress{}
 	}
+}
+
+// Checks if the running game is completed
+// It's completed when every player has achieved 100%
+func (group *Group) isGameCompleted() bool {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	for _, progress := range group.progress {
+		if progress.ProgressPercent < 100 {
+			return false
+		}
+	}
+
+	return true
 }
