@@ -19,8 +19,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// A fake client
-type FakeClient struct {
+// A mock user
+type MockUser struct {
 	mu        sync.Mutex
 	players   map[string]models.PlayerInfo
 	lobbyInfo models.LobbyInfo
@@ -28,18 +28,18 @@ type FakeClient struct {
 	conn      *websocket.Conn
 }
 
-func newFakeClient(t *testing.T, server *httptest.Server) *FakeClient {
-	fakeClient := FakeClient{}
+func newMockUser(t *testing.T, server *httptest.Server) *MockUser {
+	mockUser := MockUser{}
 
 	conn := newTestConn(t, server)
-	go fakeClient.listen(conn)
+	go mockUser.listen(conn)
 
-	return &fakeClient
+	return &mockUser
 }
 
-func (fakeClient *FakeClient) listen(conn *websocket.Conn) {
+func (mockUser *MockUser) listen(conn *websocket.Conn) {
 	go func() {
-		<-fakeClient.stop
+		<-mockUser.stop
 		conn.Close()
 	}()
 
@@ -75,7 +75,7 @@ func (fakeClient *FakeClient) listen(conn *websocket.Conn) {
 				continue
 			}
 
-			fakeClient.updatePlayers(players)
+			mockUser.updatePlayers(players)
 		case "LobbyInfo":
 			if len(msg) < 2 {
 				continue
@@ -88,46 +88,46 @@ func (fakeClient *FakeClient) listen(conn *websocket.Conn) {
 				continue
 			}
 
-			fakeClient.updateLobbyInfo(lobbyInfo)
+			mockUser.updateLobbyInfo(lobbyInfo)
 		}
 	}
 }
 
-func (fakeClient *FakeClient) getPlayers() map[string]models.PlayerInfo {
-	fakeClient.mu.Lock()
-	defer fakeClient.mu.Unlock()
+func (mockUser *MockUser) getPlayers() map[string]models.PlayerInfo {
+	mockUser.mu.Lock()
+	defer mockUser.mu.Unlock()
 
-	return maps.Clone(fakeClient.players)
+	return maps.Clone(mockUser.players)
 }
 
-func (fakeClient *FakeClient) getLobbyInfo() models.LobbyInfo {
-	fakeClient.mu.Lock()
-	defer fakeClient.mu.Unlock()
+func (mockUser *MockUser) getLobbyInfo() models.LobbyInfo {
+	mockUser.mu.Lock()
+	defer mockUser.mu.Unlock()
 
-	return fakeClient.lobbyInfo
+	return mockUser.lobbyInfo
 }
 
-func (fakeClient *FakeClient) updatePlayers(players map[string]models.PlayerInfo) {
-	fakeClient.mu.Lock()
-	defer fakeClient.mu.Unlock()
+func (mockUser *MockUser) updatePlayers(players map[string]models.PlayerInfo) {
+	mockUser.mu.Lock()
+	defer mockUser.mu.Unlock()
 
-	fakeClient.players = players
+	mockUser.players = players
 }
 
-func (fakeClient *FakeClient) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
-	fakeClient.mu.Lock()
-	defer fakeClient.mu.Unlock()
+func (mockUser *MockUser) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
+	mockUser.mu.Lock()
+	defer mockUser.mu.Unlock()
 
-	fakeClient.lobbyInfo = lobbyInfo
+	mockUser.lobbyInfo = lobbyInfo
 }
 
-func (fakeClient *FakeClient) cleanup() {
-	fakeClient.stop <- struct{}{}
-	close(fakeClient.stop)
+func (mockUser *MockUser) cleanup() {
+	mockUser.stop <- struct{}{}
+	close(mockUser.stop)
 }
 
-func (fakeClient *FakeClient) sendMsg(t *testing.T, msg string) {
-	if err := fakeClient.conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
+func (mockUser *MockUser) sendMsg(t *testing.T, msg string) {
+	if err := mockUser.conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -603,7 +603,7 @@ func TestNewGroupWithConn(t *testing.T) {
 	server := httptest.NewServer(&hub)
 	defer server.Close()
 
-	fakeClient := newFakeClient(t, server)
+	fakeClient := newMockUser(t, server)
 	defer fakeClient.cleanup()
 
 	fakeClient.sendMsg(t, "NewGroup")
@@ -620,44 +620,44 @@ func TestJoinGroupWithConn(t *testing.T) {
 	server := httptest.NewServer(&hub)
 	defer server.Close()
 
-	fakeClient1 := newFakeClient(t, server)
-	fakeClient2 := newFakeClient(t, server)
-	fakeClient3 := newFakeClient(t, server)
+	u1 := newMockUser(t, server)
+	u2 := newMockUser(t, server)
+	u3 := newMockUser(t, server)
 
-	defer fakeClient1.cleanup()
-	defer fakeClient2.cleanup()
-	defer fakeClient3.cleanup()
+	defer u1.cleanup()
+	defer u2.cleanup()
+	defer u3.cleanup()
 
-	fakeClient1.sendMsg(t, "NewGroup")
+	u1.sendMsg(t, "NewGroup")
 
-	groupId := fakeClient1.getLobbyInfo().LobbyId
+	groupId := u1.getLobbyInfo().LobbyId
 
 	// User2 join group
-	fakeClient2.sendMsg(t, "JoinGroup "+groupId)
+	u2.sendMsg(t, "JoinGroup "+groupId)
 
-	if fakeClient2.getLobbyInfo().LobbyId != groupId {
+	if u2.getLobbyInfo().LobbyId != groupId {
 		t.Fatal("User 2 should be able to join group")
 	}
 
 	// User1 should have received join notice
 
-	if len(fakeClient1.getPlayers()) != 2 {
+	if len(u1.getPlayers()) != 2 {
 		t.Fatal("User1 did not receive join notice")
 	}
 
 	// User3 join group
-	fakeClient3.sendMsg(t, "JoinGroup "+groupId)
+	u3.sendMsg(t, "JoinGroup "+groupId)
 
-	if fakeClient3.getLobbyInfo().LobbyId != groupId {
+	if u3.getLobbyInfo().LobbyId != groupId {
 		t.Fatal("User 3 should be able to join group")
 	}
 
 	// User1 and user2 should also have received
-	if len(fakeClient1.getPlayers()) != 3 {
+	if len(u1.getPlayers()) != 3 {
 		t.Fatal("User 2 should have recieved new lobby")
 	}
 
-	if len(fakeClient2.getPlayers()) != 3 {
+	if len(u2.getPlayers()) != 3 {
 		t.Fatal("User 2 should have recieved new lobby")
 	}
 
