@@ -133,6 +133,7 @@ func (group *Group) UserStartGame(u *user.User) error {
 	go func() {
 		group.countDown()
 		group.startGame()
+		group.endGame()
 	}()
 
 	return nil
@@ -183,30 +184,36 @@ func (group *Group) broadcastToUserWithId(userIds []string, msg string) bool {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	count := 0
+	atLeastOne := false
 
 	for _, userId := range userIds {
 		u := group.users[userId]
 
 		if u != nil {
 			u.SendMsg(msg)
-			count += 1
+			atLeastOne = true
 		}
 	}
 
-	return count > 0
+	return atLeastOne
 }
 
 // Sends a message to every user of this group
-func (group *Group) broadcast(msg string) {
+// Returns if at least one user was send the given msg
+func (group *Group) broadcast(msg string) bool {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
+	atLeastOne := false
+
 	for _, u := range group.users {
 		if u != nil {
+			atLeastOne = true
 			u.SendMsg(msg)
 		}
 	}
+
+	return atLeastOne
 }
 
 // Sends a message to every user of this group.
@@ -239,6 +246,21 @@ func (group *Group) avgWpm() float64 {
 	}
 
 	return totalWpm / float64(n)
+}
+
+// Starts the countdown of 10 seconds, allows for joins and exits
+func (group *Group) countDown() {
+	ticker := time.Tick(time.Second * 1)
+	countdown := 10
+
+	for _ = range ticker {
+		group.broadcast(fmt.Sprintf("Countdown %v", countdown))
+		countdown -= 1
+
+		if countdown == 0 {
+			return
+		}
+	}
 }
 
 // Starts the game and broadcasts updates every 1 second
@@ -278,19 +300,17 @@ func (group *Group) startGame() {
 	}
 }
 
-// Starts the countdown of 10 seconds, allows for joins and exits
-func (group *Group) countDown() {
-	ticker := time.Tick(time.Second * 1)
-	countdown := 10
+// Show the end game screen
+func (group *Group) endGame() {
+	progress := group.getProgressSnapshot()
+	progressBytes, err := json.Marshal(progress)
 
-	for _ = range ticker {
-		group.broadcast(fmt.Sprintf("Countdown %v", countdown))
-		countdown -= 1
-
-		if countdown == 0 {
-			return
-		}
+	if err != nil {
+		log.Println(err)
+		return
 	}
+
+	group.broadcast("EndGameResult " + string(progressBytes))
 }
 
 // Gets a snapshot of the progress
