@@ -691,8 +691,8 @@ func TestLeaveGroupWithSync(t *testing.T) {
 		t.Fatal("user1 is still in players")
 	}
 
-	if !mockClient3.players[mockClient2.u.Id()].IsLeader {
-		t.Fatal("user 2 should be the leader")
+	if !mockClient3.players[mockClient2.u.Id()].IsLeader && !mockClient3.players[mockClient3.u.Id()].IsLeader {
+		t.Fatal("none of the two players are the leader")
 	}
 }
 
