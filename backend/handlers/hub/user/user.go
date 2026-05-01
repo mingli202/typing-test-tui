@@ -1,6 +1,8 @@
 package user
 
 import (
+	"log"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -38,6 +40,11 @@ func NewUser(conn *websocket.Conn) User {
 	return user
 }
 
+// Sets the user's channel
+func (user *User) SetCh(ch chan []byte) {
+	user.ch = ch
+}
+
 // Init the buffered channel to listen for write messages
 func (user *User) InitWriteMessageCh() {
 	user.ch = make(chan []byte)
@@ -55,7 +62,9 @@ func (user *User) InitWriteMessageCh() {
 
 // Helper method to send a string of message
 func (user *User) SendMsg(msg string) {
+	log.Println("user.SendMsg " + msg)
 	if user.ch != nil {
+		log.Println("user.ch is not nil")
 		user.ch <- []byte(msg)
 	}
 }
