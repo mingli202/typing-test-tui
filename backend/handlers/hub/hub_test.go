@@ -715,6 +715,14 @@ func TestLeaveGroupWithSync(t *testing.T) {
 	if len(mockClient3.players) != 2 {
 		t.Fatal("user3 players did not get updated")
 	}
+
+	if _, ok := mockClient3.players[mockClient1.u.Id()]; ok {
+		t.Fatal("user1 is still in players")
+	}
+
+	if !mockClient3.players[mockClient2.u.Id()].IsLeader {
+		t.Fatal("user 2 should be the leader")
+	}
 }
 
 func mockClientMsg(t *testing.T, hub *Hub, mockUser *MockClient, msg string) {
