@@ -582,7 +582,7 @@ func TestConcurrentJoinStability(t *testing.T) {
 	}
 }
 
-func TestNewGroupWithConn(t *testing.T) {
+func TestNewGroupWithRes(t *testing.T) {
 	hub := newHub(dataProvider)
 
 	mockUser := newMockUser(t)
