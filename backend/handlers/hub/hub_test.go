@@ -48,43 +48,47 @@ func (mockUser *MockUser) listenForMsg(t *testing.T) {
 		msg := string(p)
 		log.Println("msg received " + msg)
 
-		msgArr := strings.Split(msg, " ")
-
-		if len(msg) < 1 {
-			t.Fatalf("msg doesn't have cmd: %v", msg)
-		}
-
-		cmd := msgArr[0]
-
-		switch cmd {
-		case "UpdatePlayers":
-			if len(msg) < 2 {
-				t.Fatalf("msg doesn't have payload: %v", msg)
-			}
-
-			playersStr := strings.Join(msgArr[1:], " ")
-
-			var players map[string]models.PlayerInfo
-			if err := json.Unmarshal([]byte(playersStr), &players); err != nil {
-				t.Fatalf("unmarshal error: %v", err)
-			}
-
-			mockUser.updatePlayers(players)
-		case "LobbyInfo":
-			if len(msg) < 2 {
-				t.Fatalf("msg doesn't have payload: %v", msg)
-			}
-
-			lobbyStr := strings.Join(msgArr[1:], " ")
-
-			var lobbyInfo models.LobbyInfo
-			if err := json.Unmarshal([]byte(lobbyStr), &lobbyInfo); err != nil {
-				t.Fatalf("unmarshal error: %v", err)
-			}
-
-			mockUser.updateLobbyInfo(lobbyInfo)
-		}
+		mockUser.handleMsg(t, msg)
 	})
+}
+
+func (mockUser *MockUser) handleMsg(t *testing.T, msg string) {
+	msgArr := strings.Split(msg, " ")
+
+	if len(msg) < 1 {
+		t.Fatalf("msg doesn't have cmd: %v", msg)
+	}
+
+	cmd := msgArr[0]
+
+	switch cmd {
+	case "UpdatePlayers":
+		if len(msg) < 2 {
+			t.Fatalf("msg doesn't have payload: %v", msg)
+		}
+
+		playersStr := strings.Join(msgArr[1:], " ")
+
+		var players map[string]models.PlayerInfo
+		if err := json.Unmarshal([]byte(playersStr), &players); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+
+		mockUser.updatePlayers(players)
+	case "LobbyInfo":
+		if len(msg) < 2 {
+			t.Fatalf("msg doesn't have payload: %v", msg)
+		}
+
+		lobbyStr := strings.Join(msgArr[1:], " ")
+
+		var lobbyInfo models.LobbyInfo
+		if err := json.Unmarshal([]byte(lobbyStr), &lobbyInfo); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+
+		mockUser.updateLobbyInfo(lobbyInfo)
+	}
 }
 
 func (mockUser *MockUser) waitForMsg() {
