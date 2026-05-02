@@ -251,15 +251,10 @@ func TestCountDown(t *testing.T) {
 }
 
 func TestStartGame(t *testing.T) {
-	ch1 := make(chan []byte)
-	ch2 := make(chan []byte)
-
+	// arrange
 	u1 := user.NewUser(nil)
 	u2 := user.NewUser(nil)
 	u3 := user.NewUser(nil)
-
-	u1.SetCh(ch1)
-	u2.SetCh(ch2)
 
 	gr := newGroup()
 
@@ -269,8 +264,11 @@ func TestStartGame(t *testing.T) {
 	go gr.startGame()
 
 	time.Sleep(1 * time.Millisecond)
+
+	// act
 	gr.AddUser(&u3)
 
+	// assert
 	userIds := gr.GetUserIdsSnapshot()
 
 	if len(userIds) != 3 {
@@ -279,5 +277,30 @@ func TestStartGame(t *testing.T) {
 
 	if _, ok := gr.playerInfo[u3.Id()]; ok {
 		t.Fatal("user3 should have not have been added to progress")
+	}
+}
+
+func TestStartGameLeaveInTheMiddleChangeLeader(t *testing.T) {
+	// arrange
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	u3 := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+	gr.AddUser(&u3)
+
+	go gr.startGame()
+
+	time.Sleep(1 * time.Millisecond)
+
+	// act
+	gr.RemoveUser(&u1)
+
+	// assert
+	if !gr.playerInfo[u2.Id()].IsLeader && !gr.playerInfo[u3.Id()].IsLeader {
+		t.Fatal("New leader not set")
 	}
 }
