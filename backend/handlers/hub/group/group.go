@@ -6,6 +6,7 @@ import (
 	"iter"
 	"log"
 	"maps"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -191,6 +192,13 @@ func (group *Group) SendUpdatePlayers() bool {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
+	return group.SendUpdatePlayersLocked()
+}
+
+// Send UpdatePlayers msg
+// Returns whether at least one user was sent the message
+// Assumes the lock is acquired
+func (group *Group) SendUpdatePlayersLocked() bool {
 	playerInfo := group.getPlayerInfoSnapshotLocked()
 	playerInfoBytes, err := json.Marshal(playerInfo)
 
@@ -292,6 +300,7 @@ func (group *Group) countDown() {
 }
 
 // Starts the game and broadcasts updates every 1 second
+// Will set a max time based on the word length, will be at least 2 minutes
 func (group *Group) startGame() {
 	if !group.setGameRunning() {
 		return
@@ -301,7 +310,7 @@ func (group *Group) startGame() {
 	nWords := len(strings.Split(group.data.Text, " "))
 
 	ticker := time.Tick(time.Second * 1)
-	timer := time.NewTimer(time.Second * 60 * time.Duration(nWords/minWpm))
+	timer := time.NewTimer(time.Second * 60 * time.Duration(math.Max(float64(nWords)/float64(minWpm), 2)))
 
 	for {
 		select {
