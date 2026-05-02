@@ -72,5 +72,6 @@ func (user *User) Cleanup() {
 	}
 	if user.ch != nil {
 		close(user.ch)
+		user.ch = nil
 	}
 }
