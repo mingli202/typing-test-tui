@@ -1,7 +1,6 @@
 package group
 
 import (
-	"log"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -123,35 +122,29 @@ func TestGetUsersSnapshot(t *testing.T) {
 
 	usersSnap := gr.GetUsersSnapshot()
 
-	userCount := 0
-
 	done := make(chan struct{})
 
-	go func() {
-		ticker := time.Tick(time.Millisecond * 8)
-
-		for {
+	for i := 0; i < 10; i += 1 {
+		go func() {
 			select {
 			case <-done:
 				break
-			case _ = <-ticker:
+			default:
 				random := rand.IntN(3)
 
 				if random == 1 {
 					u := users[rand.IntN(len(users))]
 					gr.RemoveUser(u)
-					log.Printf("Removing an user %v\n", u.Id())
 				} else {
 					u := user.NewUser(nil)
 					gr.AddUser(&u)
-					log.Printf("Adding an user %v\n", u.Id())
 				}
 			}
-		}
-	}()
+		}()
+	}
 
+	userCount := 0
 	for _, u := range usersSnap {
-		time.Sleep(time.Millisecond * 10)
 		if !slices.Contains(users, u) {
 			t.Fatal("Who is this user?")
 		}
