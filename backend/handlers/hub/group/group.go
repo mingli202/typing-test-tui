@@ -44,7 +44,6 @@ func NewGroup(id string, data models.Data) *Group {
 		data:       data,
 		playerInfo: make(map[string]*models.PlayerInfo),
 		status:     Waiting,
-		end:        make(chan struct{}, 1),
 	}
 
 	return &group
@@ -90,7 +89,7 @@ func (group *Group) RemoveUser(u *user.User) bool {
 
 	isEmpty := len(group.users) == 0
 
-	if isEmpty {
+	if isEmpty && group.end != nil {
 		group.end <- struct{}{}
 	}
 
@@ -357,6 +356,7 @@ func (group *Group) setGameRunning() bool {
 
 	if group.status != Playing {
 		group.status = Playing
+		group.end = make(chan struct{})
 		return true
 	}
 
@@ -374,6 +374,9 @@ func (group *Group) endGameRunning() bool {
 	}
 
 	group.status = End
+
+	close(group.end)
+	group.end = nil
 
 	return true
 }
