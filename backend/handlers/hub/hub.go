@@ -21,11 +21,11 @@ var upgrader = websocket.Upgrader{}
 type Hub struct {
 	mu           sync.RWMutex
 	groups       map[string]*group.Group
-	dataProvider data_provider.DataProvider
+	dataProvider *data_provider.DataProvider
 }
 
 // Makes a new hub
-func newHub(dataProvider data_provider.DataProvider) Hub {
+func newHub(dataProvider *data_provider.DataProvider) Hub {
 	return Hub{
 		groups:       make(map[string]*group.Group),
 		dataProvider: dataProvider,
@@ -160,9 +160,7 @@ func (hub *Hub) newGroup() *group.Group {
 
 	id := hub.newGroupIdLocked()
 
-	data, _ := hub.dataProvider.NewData()
-
-	group := group.NewGroup(id, data)
+	group := group.NewGroup(id, hub.dataProvider)
 	hub.groups[group.Id()] = group
 
 	return group
@@ -335,7 +333,7 @@ func (hub *Hub) String() string {
 	return fmt.Sprintf("Hub {\n    groups: %#v\n}", hub.groups)
 }
 
-func Handler(dataProvider data_provider.DataProvider) http.Handler {
+func Handler(dataProvider *data_provider.DataProvider) http.Handler {
 	hub := newHub(dataProvider)
 
 	return &hub

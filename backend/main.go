@@ -72,7 +72,7 @@ func registerRoutes(mux *http.ServeMux) error {
 		ctx := r.Context()
 		fmt.Fprintf(w, "Ready at %v!\n", ctx.Value("serverAddr"))
 	})
-	mux.Handle("/ws", hub.Handler(dataProvider))
+	mux.Handle("/ws", hub.Handler(&dataProvider))
 
 	return nil
 }
