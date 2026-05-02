@@ -300,7 +300,7 @@ func (group *Group) startGame() {
 	nWords := len(strings.Split(group.data.Text, " "))
 
 	ticker := time.Tick(time.Second * 1)
-	timer := time.NewTimer(time.Second * 60 * time.Duration(minWpm) * time.Duration(nWords))
+	timer := time.NewTimer(time.Second * 60 * time.Duration(nWords/minWpm))
 
 	for {
 		select {
