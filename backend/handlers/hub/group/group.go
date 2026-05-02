@@ -11,6 +11,7 @@ import (
 	"time"
 	"tui/backend/handlers/hub/user"
 	"tui/backend/models"
+	"tui/backend/services/data_provider"
 )
 
 type GameStatus int
@@ -22,14 +23,15 @@ const (
 )
 
 type Group struct {
-	mu         sync.RWMutex
-	id         string
-	users      map[string]*user.User
-	leaderId   *string
-	data       models.Data
-	playerInfo map[string]*models.PlayerInfo
-	status     GameStatus
-	end        chan struct{}
+	mu           sync.RWMutex
+	id           string
+	users        map[string]*user.User
+	leaderId     *string
+	data         models.Data
+	dataProvider *data_provider.DataProvider
+	playerInfo   map[string]*models.PlayerInfo
+	status       GameStatus
+	end          chan struct{}
 }
 
 func (group *Group) Id() string {
@@ -37,7 +39,9 @@ func (group *Group) Id() string {
 }
 
 // Makes a new group with the given id and data
-func NewGroup(id string, data models.Data) *Group {
+func NewGroup(id string, dataProvider *data_provider.DataProvider) *Group {
+	data, _ := dataProvider.NewData()
+
 	group := Group{
 		id:         id,
 		users:      make(map[string]*user.User),
@@ -152,11 +156,12 @@ func (group *Group) UserStartGame(u *user.User) error {
 		return fmt.Errorf("Only the leader can start the game")
 	}
 
-	if group.status != Waiting && group.status != End {
+	if group.status == Playing {
 		return fmt.Errorf("Lobby is busy, cannot start")
 	}
 
 	go func() {
+		group.newGameIfAlreadyEnded()
 		group.countDown()
 		group.startGame()
 		group.endGame()
@@ -423,5 +428,22 @@ func (group *Group) resetPlayerInfo() {
 	for _, playerInfo := range group.playerInfo {
 		playerInfo.ProgressPercent = 0
 		playerInfo.Wpm = 0
+	}
+}
+
+// Called when a new game is played after a game has already ended
+// Gets new data and tell the users about it
+func (group *Group) newGameIfAlreadyEnded() {
+	group.mu.Lock()
+	defer group.mu.Unlock()
+
+	if group.status == End {
+		newData := group.data
+
+		for newData == group.data {
+			newData, _ = group.dataProvider.NewData()
+		}
+
+		group.data = newData
 	}
 }
