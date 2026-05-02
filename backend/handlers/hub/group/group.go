@@ -348,6 +348,10 @@ func (group *Group) newLeader() {
 
 	if ok {
 		group.leaderId = &nextId
+
+		if playerInfo, ok := group.playerInfo[nextId]; ok {
+			playerInfo.IsLeader = true
+		}
 	} else {
 		group.leaderId = nil
 	}
