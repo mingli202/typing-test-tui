@@ -19,7 +19,7 @@ type Group struct {
 	users         map[string]*user.User
 	leaderId      *string
 	data          models.Data
-	progress      map[string]*models.Progress
+	playerInfo    map[string]*models.PlayerInfo
 	isGameRunning bool
 }
 
@@ -33,7 +33,7 @@ func NewGroup(id string, data models.Data) Group {
 		id:            id,
 		users:         make(map[string]*user.User),
 		data:          data,
-		progress:      make(map[string]*models.Progress),
+		playerInfo:    make(map[string]*models.PlayerInfo),
 		isGameRunning: false,
 	}
 }
@@ -50,6 +50,12 @@ func (group *Group) AddUser(u *user.User) {
 
 	if group.leaderId == nil {
 		group.newLeader()
+	}
+
+	if !group.isGameRunning {
+		group.playerInfo[u.Id()] = &models.PlayerInfo{
+			IsLeader: *group.leaderId == u.Id(),
+		}
 	}
 }
 
@@ -68,14 +74,13 @@ func (group *Group) RemoveUser(u *user.User) bool {
 		group.newLeader()
 	}
 
-	delete(group.progress, userId)
+	delete(group.playerInfo, userId)
 
 	return len(group.users) == 0
 }
 
 // Gets a snapshot of the group's user ids
 func (group *Group) GetUserIdsSnapshot() []string {
-
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
@@ -113,7 +118,7 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8
 		return fmt.Errorf("Game is not running!")
 	}
 
-	if p, ok := group.progress[u.Id()]; ok {
+	if p, ok := group.playerInfo[u.Id()]; ok {
 		p.Wpm = wpm
 		p.ProgressPercent = progressPercent
 	}
@@ -152,30 +157,21 @@ func (group *Group) GetLobbyInfo() models.LobbyInfo {
 	return lobby
 }
 
-// Sends the UpdatePlayers msg to every user of this group
-func (group *Group) SendUpdatePlayers() {
+// Send UpdatePlayers msg
+// Returns whether at least one user was sent the message
+func (group *Group) SendUpdatePlayers() bool {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	players := make(map[string]models.PlayerInfo)
-
-	for id, u := range group.users {
-		if u == nil {
-			continue
-		}
-
-		players[id] = models.PlayerInfo{
-			IsLeader: group.leaderId != nil && id == *group.leaderId,
-		}
-	}
-
-	playersAsStr, err := json.Marshal(players)
+	progress := group.getProgressSnapshotLocked()
+	progressBytes, err := json.Marshal(progress)
 
 	if err != nil {
-		return
+		log.Println(err)
+		return false
 	}
 
-	group.broadcastLocked("UpdatePlayers " + string(playersAsStr))
+	return group.broadcast("UpdatePlayers " + string(progressBytes))
 }
 
 // Broadcast the given message to the given slice of users
@@ -268,9 +264,6 @@ func (group *Group) startGame() {
 	group.setGameRunning()
 	defer group.endGameRunning()
 
-	userIds := group.GetUserIdsSnapshot()
-	group.initProgressForUsers(userIds)
-
 	minWpm := 30
 	nWords := len(strings.Split(group.data.Text, " "))
 
@@ -280,15 +273,7 @@ func (group *Group) startGame() {
 	for {
 		select {
 		case <-ticker:
-			progress := group.getProgressSnapshot()
-			progressBytes, err := json.Marshal(progress)
-
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			atLeastOneSend := group.broadcastToUserWithId(userIds, "ProgressUpdate "+string(progressBytes))
+			atLeastOneSend := group.SendUpdatePlayers()
 
 			if !atLeastOneSend || group.isGameCompleted() {
 				return
@@ -314,13 +299,19 @@ func (group *Group) endGame() {
 }
 
 // Gets a snapshot of the progress
-func (group *Group) getProgressSnapshot() map[string]models.Progress {
+func (group *Group) getProgressSnapshot() map[string]models.PlayerInfo {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	progress := make(map[string]models.Progress)
+	return group.getProgressSnapshotLocked()
+}
 
-	for k, v := range group.progress {
+// Gets a snapshot of the progress
+// Assumes mutex is acquired
+func (group *Group) getProgressSnapshotLocked() map[string]models.PlayerInfo {
+	progress := make(map[string]models.PlayerInfo)
+
+	for k, v := range group.playerInfo {
 		progress[k] = *v
 	}
 
@@ -358,23 +349,13 @@ func (group *Group) newLeader() {
 	}
 }
 
-// Initialize progress of the given users
-func (group *Group) initProgressForUsers(userIds []string) {
-	group.mu.Lock()
-	defer group.mu.Unlock()
-
-	for _, id := range userIds {
-		group.progress[id] = &models.Progress{}
-	}
-}
-
 // Checks if the running game is completed
 // It's completed when every player has achieved 100%
 func (group *Group) isGameCompleted() bool {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	for _, progress := range group.progress {
+	for _, progress := range group.playerInfo {
 		if progress.ProgressPercent < 100 {
 			return false
 		}
