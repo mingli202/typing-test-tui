@@ -210,6 +210,42 @@ func TestLeaderWhenRemoveUser2(t *testing.T) {
 	}
 }
 
+func TestManyExitWhileGameNotStarted(t *testing.T) {
+	// Arrange
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	u3 := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+	gr.AddUser(&u3)
+
+	time.Sleep(10 * time.Millisecond)
+
+	timer := time.NewTimer(500 * time.Millisecond)
+	didFinish := false
+
+	// Act
+	go func() {
+		gr.RemoveUser(&u1)
+		gr.RemoveUser(&u2)
+		gr.RemoveUser(&u3)
+		gr.RemoveUser(&u3)
+		gr.RemoveUser(&u3)
+		didFinish = true
+		timer.Stop()
+	}()
+
+	// Assert
+	<-timer.C
+
+	if !didFinish {
+		t.Fatal("Remove user is taking too long")
+	}
+}
+
 func TestCountDown(t *testing.T) {
 	u1 := user.NewUser(nil)
 	u2 := user.NewUser(nil)
@@ -357,4 +393,30 @@ func TestIsGameEndedWhenEveryoneLeft(t *testing.T) {
 	if gr.status != End {
 		t.Fatal("Game not ended when everyone left")
 	}
+}
+
+func TestNewGameAfterGameEnds(t *testing.T) {
+	// Arrange
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	u3 := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+	gr.AddUser(&u3)
+
+	go func() {
+		gr.startGame()
+		gr.endGame()
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	gr.end <- struct{}{}
+	// Act
+	gr.UserStartGame(&u1)
+
+	// Assert
 }
