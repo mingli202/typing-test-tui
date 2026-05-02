@@ -449,5 +449,18 @@ func (group *Group) newGameIfAlreadyEnded() {
 		}
 
 		group.data = newData
+
+		newGame := models.NewGame{
+			Data:    newData,
+			Players: group.getPlayerInfoSnapshotLocked(),
+		}
+
+		msg, err := newGame.ToMsg()
+
+		if err != nil {
+			return
+		}
+
+		group.broadcastLocked(msg)
 	}
 }
