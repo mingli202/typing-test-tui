@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"tui/backend/handlers/hub/group"
 	"tui/backend/handlers/hub/user"
 	"tui/backend/models"
@@ -34,7 +33,7 @@ func newHub(dataProvider data_provider.DataProvider) Hub {
 }
 
 // Makes a new group and adds the given user to it
-// Returns the newly created group id
+// Returns the lobbyInfo on success
 func (hub *Hub) handleNewGroup(u *user.User) (models.LobbyInfo, error) {
 	group := hub.newGroup()
 
@@ -45,6 +44,7 @@ func (hub *Hub) handleNewGroup(u *user.User) (models.LobbyInfo, error) {
 
 // User leaves its group if any
 // If the group has no users, remove the group from the repo
+// Otherwise, notify the users that a new user has joined
 // Returns whether the remove was successful or not
 func (hub *Hub) handleLeave(u *user.User) bool {
 	hub.mu.Lock()
@@ -72,7 +72,8 @@ func (hub *Hub) handleLeave(u *user.User) bool {
 
 // Appends the given conn to the group with the given id
 // If the user is already in a group, they will be removed from it
-// Return whether the conn was added to the group
+// If successful, notify group that a new user has joined
+// Return the lobbyInfo on succesful join
 func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, error) {
 	group, ok := hub.getGroup(groupId)
 
@@ -108,6 +109,7 @@ func (hub *Hub) handleUpdateStats(u *user.User, wpm float64, progress uint8) err
 }
 
 // Handles starting a game
+// Returns the error if any
 func (hub *Hub) handleStartGame(u *user.User) error {
 	userGroup, err := hub.getGroupOfUser(u)
 
@@ -138,7 +140,7 @@ func (hub *Hub) getGroup(id string) (*group.Group, bool) {
 
 // Returns a new unique group Id
 // Assumes the lock is already acquired
-func (hub *Hub) newGroupId() string {
+func (hub *Hub) newGroupIdLocked() string {
 	id := newGroupId()
 	_, ok := hub.groups[id]
 
@@ -156,7 +158,7 @@ func (hub *Hub) newGroup() *group.Group {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
-	id := hub.newGroupId()
+	id := hub.newGroupIdLocked()
 
 	data, _ := hub.dataProvider.NewData()
 
@@ -193,23 +195,21 @@ Returns a response message and error.
 
 All Functions:
 
-- NewGroup -> <LobbyResponse>
+- NewGroup -> <LobbyInfo>
 
-- JoinGroup <Id> -> <LobbyResponse>
+- JoinGroup <Id> -> <LobbyInfo>
 
 - LeaveGroup -> <DidSucceed>
 
 - Match -> <LobbyResponse> // TODO
 
-- Start -> Countdown // TODO
+- Start -> Countdown -> StartGame
 
 - UpdateStats <Wpm> <Progress>
 */
 func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 	msg := string(p)
 	words := strings.Split(msg, " ")
-
-	// log.Println(msg)
 
 	function := words[0]
 
@@ -330,26 +330,13 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/* Stringer */
 func (hub *Hub) String() string {
 	return fmt.Sprintf("Hub {\n    groups: %#v\n}", hub.groups)
 }
 
 func Handler(dataProvider data_provider.DataProvider) http.Handler {
 	hub := newHub(dataProvider)
-
-	ticker := time.NewTicker(5 * time.Second)
-
-	go func() {
-		for {
-			_, ok := <-ticker.C
-
-			if !ok {
-				break
-			}
-
-			log.Println(hub.String())
-		}
-	}()
 
 	return &hub
 }
