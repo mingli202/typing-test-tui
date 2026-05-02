@@ -256,7 +256,7 @@ func TestStartGame(t *testing.T) {
 
 	go gr.startGame()
 
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	// act
 	gr.AddUser(&u3)
@@ -266,6 +266,10 @@ func TestStartGame(t *testing.T) {
 
 	if len(userIds) != 3 {
 		t.Fatal("Group can still add users")
+	}
+
+	if gr.status != Playing {
+		t.Fatal("group is not in Playing Status")
 	}
 
 	if _, ok := gr.playerInfo[u3.Id()]; ok {
@@ -287,7 +291,7 @@ func TestStartGameLeaveInTheMiddleChangeLeader(t *testing.T) {
 
 	go gr.startGame()
 
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	// act
 	gr.RemoveUser(&u1)
@@ -312,7 +316,7 @@ func TestStartGameInMiddleOfGame(t *testing.T) {
 
 	go gr.startGame()
 
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	// Act
 	err := gr.UserStartGame(&u1)
@@ -320,5 +324,37 @@ func TestStartGameInMiddleOfGame(t *testing.T) {
 	// Assert
 	if err == nil {
 		t.Fatal("How come no error when starting a game that has already started")
+	}
+}
+
+func TestIsGameEndedWhenEveryoneLeft(t *testing.T) {
+	// Arrange
+	u1 := user.NewUser(nil)
+	u2 := user.NewUser(nil)
+	u3 := user.NewUser(nil)
+
+	gr := newGroup()
+
+	gr.AddUser(&u1)
+	gr.AddUser(&u2)
+	gr.AddUser(&u3)
+
+	go func() {
+		gr.startGame()
+		gr.endGame()
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	// Act
+	gr.RemoveUser(&u1)
+	gr.RemoveUser(&u2)
+	gr.RemoveUser(&u3)
+
+	time.Sleep(10 * time.Millisecond)
+
+	// Assert
+	if gr.status != End {
+		t.Fatal("Game not ended when everyone left")
 	}
 }
