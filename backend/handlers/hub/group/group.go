@@ -82,7 +82,7 @@ func (group *Group) RemoveUser(u *user.User) bool {
 	u.GroupId = nil
 
 	userId := u.Id()
-	if *group.leaderId == userId {
+	if group.leaderId == nil || *group.leaderId == userId {
 		group.newLeader()
 	}
 
