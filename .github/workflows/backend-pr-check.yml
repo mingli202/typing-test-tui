@@ -7,8 +7,8 @@ on:
       - reopened
       - synchronize
     paths:
-      - 'backend/**'
-      - '.github/workflows/backend-pr-check.yml'
+      - "backend/**"
+      - ".github/workflows/backend-pr-check.yml"
 
 permissions:
   contents: read
@@ -34,3 +34,7 @@ jobs:
       - name: Test backend
         working-directory: backend
         run: go test ./...
+
+      - name: Test backend -race
+        working-directory: backend
+        run: go test ./... -race
