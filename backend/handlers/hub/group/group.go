@@ -19,6 +19,7 @@ type GameStatus int
 
 const (
 	Waiting GameStatus = iota
+	CountDown
 	Playing
 	End
 )
@@ -165,16 +166,18 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8
 
 // Starts the game
 func (group *Group) UserStartGame(u *user.User) error {
-	group.mu.RLock()
-	defer group.mu.RUnlock()
+	group.mu.Lock()
+	defer group.mu.Unlock()
 
 	if group.leaderId == nil || *group.leaderId != u.Id() {
 		return fmt.Errorf("Only the leader can start the game")
 	}
 
-	if group.status == Playing {
+	if group.status == Playing || group.status == CountDown {
 		return fmt.Errorf("Lobby is busy, cannot start")
 	}
+
+	group.status = CountDown
 
 	go func() {
 		group.newGameIfAlreadyEnded()
@@ -291,6 +294,7 @@ func (group *Group) countDown() {
 
 // Starts the game and broadcasts updates every 1 second
 // Will set a max time based on the word length, will be at least 2 minutes
+// Return if this method successfully started a game and ended
 func (group *Group) startGame() {
 	if !group.setGameRunning() {
 		return
