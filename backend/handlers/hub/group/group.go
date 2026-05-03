@@ -326,7 +326,9 @@ func (group *Group) startGame() {
 
 // Show the end game screen
 func (group *Group) endGame() {
-	group.endGameRunning()
+	if !group.endGameRunning() {
+		return
+	}
 
 	playerInfo := group.getPlayerInfoSnapshot()
 	PlayerInfoBytes, err := json.Marshal(playerInfo)
@@ -395,7 +397,8 @@ func (group *Group) endGameRunning() bool {
 // Leader is nil if there are no more available users
 func (group *Group) newLeader() {
 	userIds := maps.Keys(group.users)
-	next, _ := iter.Pull(userIds)
+	next, stop := iter.Pull(userIds)
+	defer stop()
 
 	nextId, ok := next()
 
