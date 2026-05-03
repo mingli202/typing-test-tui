@@ -166,21 +166,17 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8
 
 // Starts the game
 func (group *Group) UserStartGame(u *user.User) error {
+	if err := group.canUserStartGame(u); err != nil {
+		return err
+	}
+
+	group.newGameIfAlreadyEnded()
+
 	group.mu.Lock()
-	defer group.mu.Unlock()
-
-	if group.leaderId == nil || *group.leaderId != u.Id() {
-		return fmt.Errorf("Only the leader can start the game")
-	}
-
-	if group.status == Playing || group.status == CountDown {
-		return fmt.Errorf("Lobby is busy, cannot start")
-	}
-
 	group.status = CountDown
+	group.mu.Unlock()
 
 	go func() {
-		group.newGameIfAlreadyEnded()
 		group.countDown()
 		group.startGame()
 		group.endGame()
@@ -326,6 +322,8 @@ func (group *Group) startGame() {
 
 // Show the end game screen
 func (group *Group) endGame() {
+	group.endGameRunning()
+
 	playerInfo := group.getPlayerInfoSnapshot()
 	PlayerInfoBytes, err := json.Marshal(playerInfo)
 
@@ -334,7 +332,6 @@ func (group *Group) endGame() {
 		return
 	}
 
-	group.endGameRunning()
 	group.resetPlayerInfo()
 	group.broadcast("EndGameResult " + string(PlayerInfoBytes))
 }
@@ -472,4 +469,20 @@ func (group *Group) newGameIfAlreadyEnded() {
 	}
 
 	group.mu.Unlock()
+}
+
+// well can the user start the game?
+func (group *Group) canUserStartGame(u *user.User) error {
+	group.mu.RLock()
+	defer group.mu.RUnlock()
+
+	if group.leaderId == nil || *group.leaderId != u.Id() {
+		return fmt.Errorf("Only the leader can start the game")
+	}
+
+	if group.status == Playing || group.status == CountDown {
+		return fmt.Errorf("Lobby is busy, cannot start")
+	}
+
+	return nil
 }
