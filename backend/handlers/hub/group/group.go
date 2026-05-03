@@ -309,12 +309,14 @@ func (group *Group) startGame() {
 	minWpm := 30
 	nWords := len(strings.Split(group.data.Text, " "))
 
-	ticker := time.Tick(time.Second * 1)
+	ticker := time.NewTicker(time.Second * 1)
+	defer ticker.Stop()
+
 	timer := time.NewTimer(time.Second * 60 * time.Duration(math.Max(float64(nWords)/float64(minWpm), 2)))
 
 	for {
 		select {
-		case <-ticker:
+		case <-ticker.C:
 			atLeastOneSend := group.SendUpdatePlayers()
 
 			if !atLeastOneSend || group.isGameCompleted() {
