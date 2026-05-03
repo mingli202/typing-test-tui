@@ -47,7 +47,9 @@ func (user *User) SetCh(ch chan []byte) {
 
 // Init the buffered channel to listen for write messages
 func (user *User) InitWriteMessageCh() {
+	user.mu.Lock()
 	user.ch = make(chan []byte)
+	user.mu.Unlock()
 
 	for p := range user.ch {
 		if user.conn == nil {
