@@ -81,7 +81,7 @@ func (group *Group) AddUser(u *user.User) {
 	group.playerInfoVersion += 1
 }
 
-// Removes the given user to this grouptitle
+// Removes the given user to this group
 // Removes the given user's groupId
 // Returns whether this group is empty
 func (group *Group) RemoveUser(u *user.User) bool {
@@ -101,6 +101,7 @@ func (group *Group) RemoveUser(u *user.User) bool {
 
 	isEmpty := len(group.users) == 0
 	shouldEndGame := isEmpty && group.status == Playing
+
 	group.mu.Unlock()
 
 	if shouldEndGame {
