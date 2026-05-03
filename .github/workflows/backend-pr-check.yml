@@ -1,0 +1,36 @@
+name: PR Go Backend Checks
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-pr-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: go build and go test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Build backend
+        working-directory: backend
+        run: go build ./...
+
+      - name: Test backend
+        working-directory: backend
+        run: go test ./...

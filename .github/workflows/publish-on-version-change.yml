@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'tui/**'
+      - '.github/workflows/publish-on-version-change.yml'
 
 permissions:
   contents: write
@@ -32,8 +35,8 @@ jobs:
             exit 0
           fi
 
-          current_version="$(sed -nE 's/^version = "(.*)"/\1/p' Cargo.toml | head -n 1)"
-          previous_toml="$(git show "${before_sha}:Cargo.toml" 2>/dev/null || true)"
+          current_version="$(sed -nE 's/^version = "(.*)"/\1/p' tui/Cargo.toml | head -n 1)"
+          previous_toml="$(git show "${before_sha}:tui/Cargo.toml" 2>/dev/null || true)"
 
           if [ -z "$previous_toml" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -81,6 +84,7 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        working-directory: tui
         run: cargo publish --locked
 
       - name: Create git tag

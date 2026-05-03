@@ -6,6 +6,9 @@ on:
       - opened
       - reopened
       - synchronize
+    paths:
+      - 'tui/**'
+      - '.github/workflows/pr-check.yml'
 
 permissions:
   contents: read
@@ -30,11 +33,13 @@ jobs:
       - name: Run cargo build
         id: build
         continue-on-error: true
+        working-directory: tui
         run: cargo build --locked
 
       - name: Run cargo test
         id: test
         continue-on-error: true
+        working-directory: tui
         run: cargo test --locked
 
       - name: Comment PR with results
