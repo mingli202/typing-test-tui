@@ -294,11 +294,11 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user := user.NewUser(conn)
 	go user.InitWriteMessageCh()
 
-	log.Printf("New user connected: %v\n", user)
+	log.Printf("New user connected: %v\n", user.Id())
 
 	defer func() {
 		hub.removeUser(&user)
-		log.Printf("User disconnected: %v\n", user)
+		log.Printf("User disconnected: %v\n", user.Id())
 	}()
 
 	// sends the user id to identify itself
@@ -321,7 +321,9 @@ func (hub *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			returnMessage = ErrorMessage{Msg: err.Error()}.Error()
-		} else if returnMessage != "" {
+		}
+
+		if returnMessage != "" {
 			user.SendMsg(returnMessage)
 		}
 
