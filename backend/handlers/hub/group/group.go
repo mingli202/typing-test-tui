@@ -108,6 +108,11 @@ func (group *Group) GetUserIdsSnapshot() []string {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
+	return group.GetUserIdsSnapshotLocked()
+}
+
+// Gets a snapshot of the group's user ids
+func (group *Group) GetUserIdsSnapshotLocked() []string {
 	snapShot := make([]string, 0)
 
 	for u := range maps.Values(group.users) {
@@ -437,9 +442,10 @@ func (group *Group) resetPlayerInfo() {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
-	for _, playerInfo := range group.playerInfo {
-		playerInfo.ProgressPercent = 0
-		playerInfo.Wpm = 0
+	for _, userId := range group.GetUserIdsSnapshotLocked() {
+		group.playerInfo[userId] = &models.PlayerInfo{
+			IsLeader: group.leaderId != nil && *group.leaderId == userId,
+		}
 	}
 }
 
