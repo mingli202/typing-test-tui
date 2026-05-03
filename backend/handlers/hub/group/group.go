@@ -286,11 +286,10 @@ func (group *Group) avgWpm() float64 {
 
 // Starts the countdown of 10 seconds, allows for joins and exits
 func (group *Group) countDown() {
-	ticker := time.NewTicker(time.Second * 1)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Second * 1)
 	countdown := 10
 
-	for _ = range ticker.C {
+	for _ = range ticker {
 		group.broadcast(fmt.Sprintf("Countdown %v", countdown))
 		countdown -= 1
 
@@ -310,14 +309,13 @@ func (group *Group) startGame() {
 	minWpm := 30
 	nWords := len(strings.Split(group.data.Text, " "))
 
-	ticker := time.NewTicker(time.Second * 1)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Second * 1)
 
 	timer := time.NewTimer(time.Second * 60 * time.Duration(math.Max(float64(nWords)/float64(minWpm), 2)))
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker:
 			atLeastOneSend := group.SendUpdatePlayers()
 
 			if !atLeastOneSend || group.isGameCompleted() {
