@@ -296,6 +296,10 @@ func (group *Group) startGame() {
 		return
 	}
 
+	group.mu.RLock()
+	end := group.end
+	group.mu.RUnlock()
+
 	minWpm := 30
 	nWords := len(strings.Split(group.data.Text, " "))
 
@@ -314,7 +318,7 @@ func (group *Group) startGame() {
 
 		case <-timer.C:
 			return
-		case <-group.end:
+		case <-end:
 			return
 		}
 	}
