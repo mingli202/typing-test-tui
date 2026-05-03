@@ -483,11 +483,15 @@ func TestNewGameAfterGameEnds(t *testing.T) {
 	initialData := gr.data
 	gr.mu.RUnlock()
 	// Act
-	gr.UserStartGame(&u1)
+	err := gr.UserStartGame(&u1)
 
 	time.Sleep(10 * time.Millisecond)
 
 	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gr.mu.RLock()
 	afterData := gr.data
 	gr.mu.RUnlock()
