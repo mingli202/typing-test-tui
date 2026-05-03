@@ -74,7 +74,7 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, erro
 	}
 
 	// leaves old group knowing that it's a different group (if any)
-	// but only if it was successful
+	// but only if the joining was successful
 	if oldGroupId != nil {
 		hub.leaveAndNotify(*oldGroupId, u)
 	}
