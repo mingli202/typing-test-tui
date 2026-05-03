@@ -11,5 +11,5 @@ Monkeytype inspired typing test in the terminal. Can play offline using the buil
 ### Backend
 - Go
 - Handles multiplayer via websockets
-- Join lobbies or match randomly (TODO)
+- Join lobbies (DONE) or match randomly (TODO)
 - go std lib, gorilla/websockets
