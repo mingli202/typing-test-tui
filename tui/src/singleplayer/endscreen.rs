@@ -7,9 +7,10 @@ use ratatui::symbols::Marker;
 use ratatui::text::Line;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType, Paragraph, Widget, Wrap};
 
-use crate::action::Action;
-use crate::model::SharedModel;
 use crate::util::data_provider::DataProvider;
+
+use super::SharedModel;
+use super::action::Action;
 
 pub enum Msg {
     Key(KeyCode),
@@ -37,7 +38,7 @@ pub fn update(
     let Msg::Key(key) = msg;
     match key {
         KeyCode::Char('q') | KeyCode::Esc => {
-            return Some(Action::Quit);
+            return Some(Action::Root(crate::action::Action::Quit));
         }
         KeyCode::Tab => return Some(Action::new_typing_screen(shared_model, data_provider)),
         _ => (),
