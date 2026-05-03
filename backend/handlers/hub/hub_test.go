@@ -25,12 +25,13 @@ var dataProvider = &dataProviderNoRef
 
 // A mock client
 type MockClient struct {
-	mu        sync.Mutex
-	players   map[string]models.PlayerInfo
-	lobbyInfo models.LobbyInfo
-	u         *user.User
-	ch        chan []byte
-	wg        sync.WaitGroup
+	mu                sync.Mutex
+	playerInfoVersion uint64
+	players           map[string]models.PlayerInfo
+	lobbyInfo         models.LobbyInfo
+	u                 *user.User
+	ch                chan []byte
+	wg                sync.WaitGroup
 }
 
 func newMockClient() *MockClient {
@@ -80,14 +81,14 @@ func (mockClient *MockClient) handleMsg(t *testing.T, msg string) {
 			t.Fatalf("msg doesn't have payload: %v", msg)
 		}
 
-		playersStr := strings.Join(msgArr[1:], " ")
+		playerInfoStr := strings.Join(msgArr[1:], " ")
 
-		var players map[string]models.PlayerInfo
-		if err := json.Unmarshal([]byte(playersStr), &players); err != nil {
+		var playerInfo models.PlayerInfoSnapshot
+		if err := json.Unmarshal([]byte(playerInfoStr), &playerInfo); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}
 
-		mockClient.updatePlayers(players)
+		mockClient.updatePlayers(playerInfo)
 	case "LobbyInfo":
 		if len(msg) < 2 {
 			t.Fatalf("msg doesn't have payload: %v", msg)
@@ -118,11 +119,15 @@ func (mockClient *MockClient) getLobbyInfo() models.LobbyInfo {
 	return mockClient.lobbyInfo
 }
 
-func (mockClient *MockClient) updatePlayers(players map[string]models.PlayerInfo) {
+func (mockClient *MockClient) updatePlayers(playerInfo models.PlayerInfoSnapshot) {
 	mockClient.mu.Lock()
 	defer mockClient.mu.Unlock()
 
-	mockClient.players = players
+	if playerInfo.Version > mockClient.playerInfoVersion {
+		mockClient.players = playerInfo.Players
+		mockClient.playerInfoVersion = playerInfo.Version
+	}
+
 }
 
 func (mockClient *MockClient) updateLobbyInfo(lobbyInfo models.LobbyInfo) {
