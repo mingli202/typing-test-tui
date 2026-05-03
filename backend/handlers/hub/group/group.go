@@ -82,7 +82,6 @@ func (group *Group) AddUser(u *user.User) {
 // Returns whether this group is empty
 func (group *Group) RemoveUser(u *user.User) bool {
 	group.mu.Lock()
-	defer group.mu.Unlock()
 
 	delete(group.users, u.Id())
 	u.GroupId = nil
@@ -95,12 +94,12 @@ func (group *Group) RemoveUser(u *user.User) bool {
 	delete(group.playerInfo, userId)
 
 	isEmpty := len(group.users) == 0
+	shouldEndGame := isEmpty && group.status == Playing
+	group.mu.Unlock()
 
-	go func() {
-		if isEmpty && group.end != nil {
-			group.end <- struct{}{}
-		}
-	}()
+	if shouldEndGame {
+		group.endGameRunning()
+	}
 
 	return isEmpty
 }
