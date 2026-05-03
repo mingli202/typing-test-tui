@@ -96,9 +96,11 @@ func (group *Group) RemoveUser(u *user.User) bool {
 
 	isEmpty := len(group.users) == 0
 
-	if isEmpty && group.end != nil {
-		group.end <- struct{}{}
-	}
+	go func() {
+		if isEmpty && group.end != nil {
+			group.end <- struct{}{}
+		}
+	}()
 
 	return isEmpty
 }
