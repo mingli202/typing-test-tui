@@ -458,7 +458,7 @@ func (group *Group) newGameIfAlreadyEnded() {
 
 		newGame := models.NewGame{
 			Data:        newData,
-			PlayersInfo: group.getPlayerInfoSnapshotLocked(),
+			PlayersInfo: group.getPlayerInfoSnapshot(),
 		}
 
 		msg, err := newGame.ToMsg()
