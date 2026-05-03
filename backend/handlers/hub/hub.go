@@ -67,26 +67,29 @@ func (hub *Hub) handleLeave(u *user.User) error {
 // If successful, notify group that a new user has joined
 // Return the lobbyInfo on succesful join
 func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, error) {
-	if u.GroupId != nil && *u.GroupId != groupId {
-		hub.handleLeave(u)
+	isJoiningSameGroup := u.GroupId != nil && *u.GroupId == groupId
+
+	// asserts the joining group is not the same as the one already present
+	if isJoiningSameGroup {
+		return models.LobbyInfo{}, fmt.Errorf("How can you join the same group?")
 	}
 
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	// leaves old group knowing that it's a different group (if any)
+	_ = hub.handleLeave(u)
 
-	group, ok := hub.groups[groupId]
+	err := hub.join(groupId, u)
 
-	if !ok {
-		return models.LobbyInfo{}, fmt.Errorf("Could not find group %v to join", groupId)
+	if err != nil {
+		return models.LobbyInfo{}, err
 	}
 
-	group.AddUser(u)
+	if group, ok := hub.getGroup(groupId); ok {
+		group.SendUpdatePlayers()
 
-	lobbyInfo := group.GetLobbyInfo()
-
-	go group.SendUpdatePlayers()
-
-	return lobbyInfo, nil
+		return group.GetLobbyInfo(), nil
+	} else {
+		return models.LobbyInfo{}, fmt.Errorf("Could not find the group you just joined???")
+	}
 }
 
 // Handles the updating of stats
