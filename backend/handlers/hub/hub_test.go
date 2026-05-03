@@ -271,7 +271,11 @@ func TestHandleNewGroup(t *testing.T) {
 	}
 
 	if len(hub.groups) != 1 {
-		t.Fatalf("Should have added a new group but old group is gone")
+		t.Fatal("Should have added a new group but old group is gone")
+	}
+
+	if u.GroupId == nil || *u.GroupId != lobby.LobbyId {
+		t.Fatal("user groupid did not get set to the new group")
 	}
 
 	group2 := hub.groups[lobby.LobbyId]
@@ -285,7 +289,7 @@ func TestHandleNewGroup(t *testing.T) {
 	}
 }
 
-func TestJoin(t *testing.T) {
+func TestHandleJoin(t *testing.T) {
 	hub := newHub(dataProvider)
 
 	user1 := user.NewUser(nil)
@@ -317,7 +321,7 @@ func TestJoin(t *testing.T) {
 	}
 
 	// user 1 joins invalid group
-	_, err = hub.handleJoin("ramdom groupId", &user1)
+	_, err = hub.handleJoin("random groupId", &user1)
 
 	if err == nil {
 		t.Fatalf("Group id not found, impossible")
@@ -332,6 +336,11 @@ func TestJoin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	if user1.GroupId == nil {
+		t.Fatal("user groupid is gone")
+	}
+
 	groupId2 := lobby2.LobbyId
 	group2 := hub.groups[groupId2]
 
@@ -361,6 +370,7 @@ func TestJoin(t *testing.T) {
 	if ok {
 		t.Fatalf("Group1 should have been deleted")
 	}
+
 }
 
 func TestHandleMessageNewGroup(t *testing.T) {
