@@ -527,6 +527,27 @@ func TestHandleMessageEmptyInput(t *testing.T) {
 	}
 }
 
+// Issue: UpdateStats accepts negative progress values, which are parsed then cast to uint8.
+// Regression expectation: negative progress should be rejected at message validation time.
+func TestHandleMessageUpdateStatsRejectsNegativeProgress(t *testing.T) {
+	hub := newHub(dataProvider)
+	u := user.NewUser(nil)
+
+	_, err := hub.handleNewGroup(&u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = hub.handleMessage([]byte("UpdateStats 70.0 -1"), &u)
+	if err == nil {
+		t.Fatal("expected validation error for negative progress")
+	}
+
+	if !strings.Contains(err.Error(), "<Progress>") {
+		t.Fatalf("expected progress validation error, got: %v", err)
+	}
+}
+
 // Issue: stale/non-existent user.GroupId must not panic in getGroupOfUser.
 // Expected behavior is a regular error that includes the missing group id.
 func TestGetGroupOfUserMissingGroupDoesNotPanic(t *testing.T) {

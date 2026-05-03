@@ -1,6 +1,7 @@
 package user_test
 
 import (
+	"sync"
 	"testing"
 	"tui/backend/handlers/hub/user"
 )
@@ -28,4 +29,45 @@ func TestSendMsgAfterCleanupDoesNotPanic(t *testing.T) {
 	}()
 
 	u.SendMsg("hello")
+}
+
+// Issue: concurrent SendMsg/Cleanup should not panic from close/send races.
+// Regression expectation: high-contention interleavings remain panic-free.
+func TestSendMsgCleanupConcurrentDoesNotPanic(t *testing.T) {
+	for i := 0; i < 500; i++ {
+		u := user.NewUser(nil)
+		u.SetCh(make(chan []byte, 1))
+
+		var wg sync.WaitGroup
+		panicCh := make(chan any, 2)
+
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					panicCh <- r
+				}
+			}()
+			u.SendMsg("x")
+		}()
+
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					panicCh <- r
+				}
+			}()
+			u.Cleanup()
+		}()
+
+		wg.Wait()
+
+		select {
+		case p := <-panicCh:
+			t.Fatalf("concurrent SendMsg/Cleanup panicked: %v", p)
+		default:
+		}
+	}
 }

@@ -367,6 +367,24 @@ func TestStartGameInMiddleOfGame(t *testing.T) {
 	}
 }
 
+// Issue: starting a game on an empty group should not panic.
+// Regression expectation: method returns an error instead of dereferencing a nil leader.
+func TestUserStartGameEmptyGroupDoesNotPanic(t *testing.T) {
+	gr := newGroup()
+	u := user.NewUser(nil)
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("UserStartGame panicked on empty group: %v", recovered)
+		}
+	}()
+
+	err := gr.UserStartGame(&u)
+	if err == nil {
+		t.Fatal("expected error when starting game in empty group")
+	}
+}
+
 func TestIsGameEndedWhenEveryoneLeft(t *testing.T) {
 	// Arrange
 	u1 := user.NewUser(nil)
@@ -512,4 +530,95 @@ func TestNewGameAfterGameEnds(t *testing.T) {
 	assertNewData(msg3)
 
 	done <- struct{}{}
+}
+
+// Issue: short texts used to compute near-zero/zero game timeout and ended immediately.
+// Regression expectation: even with a 1-word text, startGame should not end within 1 second.
+func TestStartGameMinimumDurationForShortText(t *testing.T) {
+	u := user.NewUser(nil)
+	u.SetCh(make(chan []byte, 8))
+
+	gr := newGroup()
+	gr.data.Text = "short"
+	gr.AddUser(&u)
+
+	done := make(chan struct{})
+	go func() {
+		gr.startGame()
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		gr.mu.RLock()
+		status := gr.status
+		endCh := gr.end
+		gr.mu.RUnlock()
+
+		if status == Playing && endCh != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("game did not enter playing state in time")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	time.Sleep(1100 * time.Millisecond)
+	select {
+	case <-done:
+		t.Fatal("startGame ended too early for short text")
+	default:
+	}
+
+	gr.mu.RLock()
+	endCh := gr.end
+	gr.mu.RUnlock()
+	endCh <- struct{}{}
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("startGame did not stop after end signal")
+	}
+}
+
+// Issue: startGame ticker lifecycle must allow repeated start/stop runs to terminate cleanly.
+func TestStartGameRepeatedRunsTerminateCleanly(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		u := user.NewUser(nil)
+		u.SetCh(make(chan []byte, 4))
+
+		gr := newGroup()
+		gr.AddUser(&u)
+
+		done := make(chan struct{})
+		go func() {
+			gr.startGame()
+			close(done)
+		}()
+
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			gr.mu.RLock()
+			status := gr.status
+			endCh := gr.end
+			gr.mu.RUnlock()
+
+			if status == Playing && endCh != nil {
+				endCh <- struct{}{}
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("game did not enter playing state in time")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("startGame did not stop after end signal")
+		}
+	}
 }
