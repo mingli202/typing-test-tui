@@ -145,7 +145,7 @@ func (group *Group) GetUsersSnapshot() []*user.User {
 
 // Update the running game's stats
 // If there is no game, it does nothing
-// Returns an error if the game is not running
+// Returns an error if the game is not running or they are not part of the game
 func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8) error {
 	group.mu.Lock()
 	defer group.mu.Unlock()
@@ -159,9 +159,11 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8
 		p.ProgressPercent = progressPercent
 
 		group.playerInfoVersion += 1
-	}
 
-	return nil
+		return nil
+	} else {
+		return fmt.Errorf("You are not part of this game!")
+	}
 }
 
 // Starts the game
