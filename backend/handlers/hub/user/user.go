@@ -8,13 +8,15 @@ import (
 )
 
 type User struct {
-	mu         sync.Mutex
-	conn       *websocket.Conn
-	ch         chan []byte
-	id         string
-	totalWpm   float64
-	gamePlayed int
-	GroupId    *string
+	mu          sync.Mutex
+	conn        *websocket.Conn
+	ch          chan []byte
+	done        chan struct{}
+	cleanupOnce sync.Once
+	id          string
+	totalWpm    float64
+	gamePlayed  int
+	GroupId     *string
 }
 
 func (u *User) Id() string {
@@ -34,6 +36,7 @@ func (user *User) AvgWpm() float64 {
 func NewUser(conn *websocket.Conn) User {
 	return User{
 		conn:    conn,
+		done:    make(chan struct{}),
 		id:      uuid.NewString(),
 		GroupId: nil,
 	}
@@ -49,18 +52,24 @@ func (user *User) SetCh(ch chan []byte) {
 func (user *User) InitWriteMessageCh() {
 	user.mu.Lock()
 	user.ch = make(chan []byte, 64)
+	ch := user.ch
 	user.mu.Unlock()
 
 	go func() {
-		for p := range user.ch {
-			if user.conn == nil {
-				continue
-			}
+		for {
+			select {
+			case <-user.done:
+				return
+			case p := <-ch:
+				if user.conn == nil {
+					continue
+				}
 
-			if err := user.conn.WriteMessage(websocket.TextMessage, p); err != nil {
-				user.mu.Lock()
-				user.conn = nil
-				user.mu.Unlock()
+				if err := user.conn.WriteMessage(websocket.TextMessage, p); err != nil {
+					user.mu.Lock()
+					user.conn = nil
+					user.mu.Unlock()
+				}
 			}
 		}
 	}()
@@ -69,26 +78,31 @@ func (user *User) InitWriteMessageCh() {
 // Helper method to send a string of message
 func (user *User) SendMsg(msg string) {
 	user.mu.Lock()
-	defer user.mu.Unlock()
+	ch := user.ch
+	done := user.done
+	user.mu.Unlock()
 
-	if user.ch != nil {
+	if ch != nil {
 		select {
-		case user.ch <- []byte(msg):
-		default:
+		case ch <- []byte(msg):
+		case <-done:
 		}
 	}
 }
 
 // Close websocket connection and closes the ch
 func (user *User) Cleanup() {
-	user.mu.Lock()
-	defer user.mu.Unlock()
-
-	if user.conn != nil {
-		user.conn.Close()
-	}
-	if user.ch != nil {
-		close(user.ch)
+	user.cleanupOnce.Do(func() {
+		user.mu.Lock()
+		conn := user.conn
+		user.conn = nil
 		user.ch = nil
-	}
+		user.mu.Unlock()
+
+		if conn != nil {
+			conn.Close()
+		}
+
+		close(user.done)
+	})
 }
