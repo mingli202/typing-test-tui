@@ -40,6 +40,7 @@ func NewUser(conn *websocket.Conn) User {
 }
 
 // Sets the user's channel
+// Used for debugging and testing
 func (user *User) SetCh(ch chan []byte) {
 	user.ch = ch
 }
