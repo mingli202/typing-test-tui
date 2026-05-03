@@ -79,8 +79,10 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, erro
 	// leaves old group knowing that it's a different group (if any)
 	// but only if the joining was successful
 	if oldGroupId != nil {
-		hub.leaveLocked(*oldGroupId, u)
-		hub.notifyGroup(*oldGroupId)
+		if oldGroup, _ := hub.leaveLocked(*oldGroupId, u); oldGroup != nil {
+			oldGroup.SendUpdatePlayers()
+		}
+
 	}
 
 	group.AddUser(u)
@@ -190,12 +192,12 @@ func (hub *Hub) canJoinGroupLocked(groupId string, u *user.User) (*group.Group, 
 }
 
 // Have the given user leaveLocked the given group
-// Returns an error if the user failed to leaveLocked the group
-func (hub *Hub) leaveLocked(groupId string, u *user.User) error {
+// Returns the group that got left and an error if the user failed to leaveLocked the group
+func (hub *Hub) leaveLocked(groupId string, u *user.User) (*group.Group, error) {
 	group, ok := hub.groups[groupId]
 
 	if !ok {
-		return fmt.Errorf("Did not find group to leave")
+		return nil, fmt.Errorf("Did not find group to leave")
 	}
 
 	isEmpty := group.RemoveUser(u)
@@ -203,21 +205,21 @@ func (hub *Hub) leaveLocked(groupId string, u *user.User) error {
 		delete(hub.groups, groupId)
 	}
 
-	return nil
+	return group, nil
 }
 
 // Another helper function that handles notifying the group
 // Returns an error if the user failed to leave the group
 func (hub *Hub) leaveAndNotify(groupId string, u *user.User) error {
 	hub.mu.Lock()
-	err := hub.leaveLocked(groupId, u)
+	group, err := hub.leaveLocked(groupId, u)
 	hub.mu.Unlock()
 
 	if err != nil {
 		return err
 	}
 
-	hub.notifyGroup(groupId)
+	group.SendUpdatePlayers()
 
 	return nil
 }
