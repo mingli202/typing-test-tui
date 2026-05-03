@@ -259,8 +259,8 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (string, error) {
 
 		wpm, err := strconv.ParseFloat(wpmStr, 64)
 
-		if err != nil {
-			return "", fmt.Errorf("<Wpm> must be a float")
+		if err != nil || wpm < 0 {
+			return "", fmt.Errorf("<Wpm> must be a positive float")
 		}
 
 		progress, err := strconv.ParseInt(progressStr, 10, 8)
