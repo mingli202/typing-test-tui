@@ -340,12 +340,6 @@ func (group *Group) getPlayerInfoSnapshot() models.PlayerInfoSnapshot {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
 
-	return group.getPlayerInfoSnapshotLocked()
-}
-
-// Gets a snapshot of the playerInfo
-// Assumes mutex is acquired
-func (group *Group) getPlayerInfoSnapshotLocked() models.PlayerInfoSnapshot {
 	v := group.playerInfoVersion
 	playerInfo := make(map[string]models.PlayerInfo)
 
