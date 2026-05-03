@@ -442,8 +442,10 @@ func (group *Group) newGameIfAlreadyEnded() {
 	if group.status == End {
 		newData := group.data
 
-		for newData == group.data {
-			newData, _ = group.dataProvider.NewData()
+		if !group.dataProvider.HasLessThan2Quotes() {
+			for newData == group.data {
+				newData, _ = group.dataProvider.NewData()
+			}
 		}
 
 		group.data = newData

@@ -46,3 +46,8 @@ func (provider *DataProvider) NewData() (models.Data, error) {
 
 	return provider.repository[randomIndex], nil
 }
+
+// To prevent caller of NewData from entering an infinite loop
+func (provider *DataProvider) HasLessThan2Quotes() bool {
+	return len(provider.repository) < 2
+}
