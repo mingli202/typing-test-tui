@@ -75,21 +75,24 @@ func (hub *Hub) handleLeave(u *user.User) bool {
 // If successful, notify group that a new user has joined
 // Return the lobbyInfo on succesful join
 func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, error) {
-	group, ok := hub.getGroup(groupId)
-
-	if !ok {
-		return models.LobbyInfo{}, fmt.Errorf("Could not find group to join")
-	}
-
 	if u.GroupId != nil && *u.GroupId != groupId {
 		hub.handleLeave(u)
+	}
+
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+
+	group, ok := hub.groups[groupId]
+
+	if !ok {
+		return models.LobbyInfo{}, fmt.Errorf("Could not find group %v to join", groupId)
 	}
 
 	group.AddUser(u)
 
 	lobbyInfo := group.GetLobbyInfo()
 
-	group.SendUpdatePlayers()
+	go group.SendUpdatePlayers()
 
 	return lobbyInfo, nil
 }
