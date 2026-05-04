@@ -211,8 +211,8 @@ func TestMockClientHandleMsgOutOfOrderUpdatePlayers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClient.handleMsg(t, "UpdatePlayers "+string(newPayload))
-	mockClient.handleMsg(t, "UpdatePlayers "+string(oldPayload))
+	mockClient.handleMsg(t, "PlayersInfo "+string(newPayload))
+	mockClient.handleMsg(t, "PlayersInfo "+string(oldPayload))
 
 	got := mockClient.getPlayers()
 	want := map[string]models.PlayerInfo{
@@ -497,7 +497,7 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	success, err := strconv.ParseBool(msgStr)
+	success, err := strconv.ParseBool(strings.Join(strings.Split(msgStr, " ")[1:], " "))
 
 	if err != nil {
 		t.Fatal(err)
@@ -521,7 +521,7 @@ func TestHandleMessageLeaveGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	success, _ = strconv.ParseBool(msgStr)
+	success, _ = strconv.ParseBool(strings.Join(strings.Split(msgStr, " ")[1:], " "))
 	if success == false {
 		t.Fatal("Unsuccessful leave")
 	}
