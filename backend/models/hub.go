@@ -19,19 +19,19 @@ type PlayerInfo struct {
 	ProgressPercent uint8 `json:"progress_percent"`
 }
 
-type PlayerInfoSnapshot struct {
+type PlayersInfoSnapshot struct {
 	LobbyId string                `json:"lobby_id"`
 	Version uint64                `json:"version"`
 	Players map[string]PlayerInfo `json:"players"`
 }
 
 type NewGame struct {
-	Data        Data               `json:"data"`
-	PlayersInfo PlayerInfoSnapshot `json:"players_info"`
+	Data        Data                `json:"data"`
+	PlayersInfo PlayersInfoSnapshot `json:"players_info"`
 }
 
 type EndGame struct {
-	FinalPlayersInfo PlayerInfoSnapshot
+	FinalPlayersInfo PlayersInfoSnapshot
 }
 
 type ErrorMessage struct {
@@ -43,7 +43,7 @@ type UserIdMessage struct {
 }
 
 type LeaveGroupMessage struct {
-	Success bool
+	DidSucceed bool
 }
 
 type CountdownMessage struct {
@@ -89,10 +89,10 @@ func (userId UserIdMessage) ToMsg() (string, error) {
 }
 
 func (leaveGroupMsg LeaveGroupMessage) ToMsg() (string, error) {
-	return "LeaveGroup " + strconv.FormatBool(leaveGroupMsg.Success), nil
+	return "LeaveGroup " + strconv.FormatBool(leaveGroupMsg.DidSucceed), nil
 }
 
-func (playerInfoSnapshot PlayerInfoSnapshot) ToMsg() (string, error) {
+func (playerInfoSnapshot PlayersInfoSnapshot) ToMsg() (string, error) {
 	playerInfoBytes, err := json.Marshal(playerInfoSnapshot)
 
 	if err != nil {
