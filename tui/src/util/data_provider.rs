@@ -3,10 +3,11 @@ use std::fs;
 
 use rand::RngExt;
 use rand::seq::IndexedRandom;
+use serde::{Deserialize, Serialize};
 
 use crate::singleplayer::Mode;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Data {
     pub text: String,
     pub source: String,
