@@ -1,10 +1,8 @@
 package group
 
 import (
-	"encoding/json"
 	"fmt"
 	"iter"
-	"log"
 	"maps"
 	"math"
 	"strings"
@@ -218,41 +216,13 @@ func (group *Group) GetLobbyInfo() models.LobbyInfo {
 // Returns whether at least one user was sent the message
 func (group *Group) SendUpdatePlayers() bool {
 	playerInfo := group.getPlayerInfoSnapshot()
-	playerInfoBytes, err := json.Marshal(playerInfo)
 
-	if err != nil {
-		log.Println(err)
-		return false
-	}
-
-	msg := fmt.Sprintf("UpdatePlayers %v", string(playerInfoBytes))
-
-	return group.broadcast(msg)
-}
-
-// Broadcast the given message to the given slice of users
-// Return if at least one user got the message
-func (group *Group) broadcastToUserWithId(userIds []string, msg string) bool {
-	group.mu.RLock()
-	defer group.mu.RUnlock()
-
-	atLeastOne := false
-
-	for _, userId := range userIds {
-		u := group.users[userId]
-
-		if u != nil {
-			u.SendMsg(msg)
-			atLeastOne = true
-		}
-	}
-
-	return atLeastOne
+	return group.broadcast(playerInfo)
 }
 
 // Sends a message to every user of this group
 // Returns if at least one user was send the given msg
-func (group *Group) broadcast(msg string) bool {
+func (group *Group) broadcast(msg models.Message) bool {
 	users := group.GetUsersSnapshot()
 
 	atLeastOne := false
@@ -295,7 +265,7 @@ func (group *Group) countDown() {
 	countdown := 10
 
 	for _ = range ticker {
-		group.broadcast(fmt.Sprintf("Countdown %v", countdown))
+		group.broadcast(models.CountdownMessage{Countdown: countdown})
 		countdown -= 1
 
 		if countdown == 0 {
@@ -347,15 +317,9 @@ func (group *Group) endGame() {
 	}
 
 	playerInfo := group.getPlayerInfoSnapshot()
-	PlayerInfoBytes, err := json.Marshal(playerInfo)
-
-	if err != nil {
-		log.Println(err)
-		return
-	}
 
 	group.resetPlayerInfo()
-	group.broadcast("EndGameResult " + string(PlayerInfoBytes))
+	group.broadcast(models.EndGame{FinalPlayersInfo: playerInfo})
 }
 
 // Gets a snapshot of the playerInfo
@@ -491,13 +455,7 @@ func (group *Group) sendNewGame() {
 		PlayersInfo: group.getPlayerInfoSnapshot(),
 	}
 
-	msg, err := newGame.ToMsg()
-
-	if err != nil {
-		return
-	}
-
-	group.broadcast(msg)
+	group.broadcast(newGame)
 }
 
 // well can the user start the game?

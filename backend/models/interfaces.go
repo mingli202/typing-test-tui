@@ -1,5 +1,5 @@
 package models
 
-type ToMsg interface {
+type Message interface {
 	ToMsg() (string, error)
 }

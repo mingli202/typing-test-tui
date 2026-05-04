@@ -11,7 +11,7 @@ import (
 type User struct {
 	mu          sync.Mutex
 	conn        *websocket.Conn
-	ch          chan models.ToMsg
+	ch          chan models.Message
 	done        chan struct{}
 	cleanupOnce sync.Once
 	id          string
@@ -45,14 +45,14 @@ func NewUser(conn *websocket.Conn) User {
 
 // Sets the user's channel
 // Used for debugging and testing
-func (user *User) SetCh(ch chan models.ToMsg) {
+func (user *User) SetCh(ch chan models.Message) {
 	user.ch = ch
 }
 
 // Init the buffered channel to listen for write messages
 func (user *User) InitWriteMessageCh() {
 	user.mu.Lock()
-	user.ch = make(chan models.ToMsg, 64)
+	user.ch = make(chan models.Message, 64)
 	ch := user.ch
 	user.mu.Unlock()
 
@@ -69,7 +69,7 @@ func (user *User) InitWriteMessageCh() {
 				str, errMsg := msg.ToMsg()
 
 				if errMsg != nil {
-					str = models.ErrorMessage{Msg: errMsg.Error()}.ToMsg()
+					str, _ = models.ErrorMessage{Err: errMsg}.ToMsg()
 				}
 
 				if err := user.conn.WriteMessage(websocket.TextMessage, []byte(str)); err != nil {
@@ -83,7 +83,7 @@ func (user *User) InitWriteMessageCh() {
 }
 
 // Helper method to send a string of message
-func (user *User) SendMsg(msg models.ToMsg) {
+func (user *User) SendMsg(msg models.Message) {
 	user.mu.Lock()
 	ch := user.ch
 	done := user.done
