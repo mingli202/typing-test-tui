@@ -2,6 +2,7 @@ package user
 
 import (
 	"sync"
+	"tui/backend/models"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -76,15 +77,21 @@ func (user *User) InitWriteMessageCh() {
 }
 
 // Helper method to send a string of message
-func (user *User) SendMsg(msg string) {
+func (user *User) SendMsg(msg models.ToMsg) {
 	user.mu.Lock()
 	ch := user.ch
 	done := user.done
 	user.mu.Unlock()
 
+	str, err := msg.ToMsg()
+
+	if err != nil {
+		str = err.Error()
+	}
+
 	if ch != nil {
 		select {
-		case ch <- []byte(msg):
+		case ch <- []byte(str):
 		case <-done:
 		}
 	}
