@@ -6,26 +6,26 @@ use crate::util::data_provider::Data;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlayerInfo {
-    is_leader: bool,
-    wpm: f64,
-    progress_percent: u8,
+    pub is_leader: bool,
+    pub wpm: f64,
+    pub progress_percent: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlayerInfoSnapshot {
-    lobby_id: String,
-    version: u64,
-    players: HashMap<String, PlayerInfo>,
+    pub lobby_id: String,
+    pub version: u64,
+    pub players: HashMap<String, PlayerInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LobbyInfo {
-    lobby_id: String,
-    data: Data,
+    pub lobby_id: String,
+    pub data: Data,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NewGame {
-    data: Data,
-    players_info: PlayerInfoSnapshot,
+    pub data: Data,
+    pub players_info: PlayerInfoSnapshot,
 }
