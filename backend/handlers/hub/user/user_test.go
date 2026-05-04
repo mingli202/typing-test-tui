@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 	"tui/backend/handlers/hub/user"
+	"tui/backend/models"
 )
 
 func TestNewUser(t *testing.T) {
@@ -18,7 +19,7 @@ func TestNewUser(t *testing.T) {
 // If this test fails with a panic, the implementation is still vulnerable.
 func TestSendMsgAfterCleanupDoesNotPanic(t *testing.T) {
 	u := user.NewUser(nil)
-	ch := make(chan []byte)
+	ch := make(chan models.Message)
 	u.SetCh(ch)
 	u.Cleanup()
 
@@ -28,7 +29,7 @@ func TestSendMsgAfterCleanupDoesNotPanic(t *testing.T) {
 		}
 	}()
 
-	u.SendMsg("hello")
+	u.SendMsg(models.CountdownMessage{})
 }
 
 // Issue: concurrent SendMsg/Cleanup should not panic from close/send races.
@@ -36,7 +37,7 @@ func TestSendMsgAfterCleanupDoesNotPanic(t *testing.T) {
 func TestSendMsgCleanupConcurrentDoesNotPanic(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		u := user.NewUser(nil)
-		u.SetCh(make(chan []byte, 1))
+		u.SetCh(make(chan models.Message, 1))
 
 		var wg sync.WaitGroup
 		panicCh := make(chan any, 2)
@@ -49,7 +50,7 @@ func TestSendMsgCleanupConcurrentDoesNotPanic(t *testing.T) {
 					panicCh <- r
 				}
 			}()
-			u.SendMsg("x")
+			u.SendMsg(models.CountdownMessage{})
 		}()
 
 		go func() {
