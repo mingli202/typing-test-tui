@@ -132,7 +132,7 @@ fn init_recv_msg_task(
             tokio::select! {
                 Some(msg) = read_rx.recv() => {
                     if let Err(err) = parse_ws_msg(&msg, Arc::clone(&game_model)) {
-                         let res = toast::send(&event_tx, ToastMessage::error(err));
+                        let res = toast::send(&event_tx, ToastMessage::error(err));
                         if res.is_err() {
                             return;
                         }

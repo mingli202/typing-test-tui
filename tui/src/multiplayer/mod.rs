@@ -328,7 +328,17 @@ fn typing_progress(lobby: &Lobby) -> usize {
 
     let progress = lobby.typing.letters_typed() * 100 / total_len;
 
-    if progress > 100 { 100 } else { progress }
+    if progress >= 100 {
+        if let Some(word) = lobby.typing.get_curr_word()
+            && word.is_error()
+        {
+            99
+        } else {
+            100
+        }
+    } else {
+        progress
+    }
 }
 
 pub fn view(model: &MultiplayerModel, area: Rect, buf: &mut Buffer) {
