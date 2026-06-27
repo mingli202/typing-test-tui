@@ -78,7 +78,7 @@ func (hub *Hub) handleJoin(groupId string, u *user.User) (models.LobbyInfo, erro
 		return models.LobbyInfo{}, fmt.Errorf("Already in a group, leave the group before joining a new one!")
 	}
 
-	group, err := hub.canJoinGroupLocked(groupId, u)
+	group, err := hub.canJoinGroupLocked(groupId)
 
 	if err != nil {
 		return models.LobbyInfo{}, err
@@ -180,7 +180,7 @@ func (hub *Hub) getGroupOfUser(u *user.User) (*group.Group, error) {
 }
 
 // Returns the group to be joined if it is possible
-func (hub *Hub) canJoinGroupLocked(groupId string, u *user.User) (*group.Group, error) {
+func (hub *Hub) canJoinGroupLocked(groupId string) (*group.Group, error) {
 	group, ok := hub.groups[groupId]
 
 	if !ok {
