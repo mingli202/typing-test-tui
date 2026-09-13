@@ -126,7 +126,7 @@ func (group *Group) GetUserIdsSnapshot() []string {
 func (group *Group) GetUserIdsSnapshotLocked() []string {
 	snapShot := make([]string, 0)
 
-	for u := range maps.Values(group.users) {
+	for _, u := range group.users {
 		snapShot = append(snapShot, u.Id())
 	}
 
@@ -146,7 +146,7 @@ func (group *Group) GetUsersSnapshot() []*user.User {
 func (group *Group) GetUsersSnapshotLocked() []*user.User {
 	snapShot := make([]*user.User, 0)
 
-	for u := range maps.Values(group.users) {
+	for _, u := range group.users {
 		snapShot = append(snapShot, u)
 	}
 
@@ -279,7 +279,7 @@ func (group *Group) countDown() {
 	countdown := 10
 
 	group.broadcast(models.CountdownMessage{Countdown: countdown})
-	for _ = range ticker {
+	for range ticker {
 		countdown -= 1
 
 		if countdown == 0 {
