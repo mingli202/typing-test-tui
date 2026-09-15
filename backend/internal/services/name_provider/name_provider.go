@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 	"math/rand/v2"
-	"tui/backend/internal/assets"
 	"tui/backend/internal/models"
+	"tui/backend/pkg/assets"
 )
 
 type NameProvider struct {
