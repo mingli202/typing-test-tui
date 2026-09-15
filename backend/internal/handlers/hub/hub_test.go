@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -701,7 +702,7 @@ func TestHandleMessageUpdateStatsRejectsNegativeProgress(t *testing.T) {
 // Issue: ServeHTTP builds ErrorMessage on handler error but did not send it to clients.
 // Regression expectation: invalid commands should produce an "Error ..." websocket message.
 func TestServeHTTPSendsErrorMessageOnInvalidCommand(t *testing.T) {
-	h := Handler(&dataProvider, &nameProvider)
+	h := Handler(&dataProvider, &nameProvider, context.Background())
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 
@@ -785,7 +786,7 @@ func TestConcurrentJoinStability(t *testing.T) {
 	const nIterations = 200
 
 	users := make([]*user.User, 0, nUsers)
-	for i := 0; i < nUsers; i++ {
+	for range nUsers {
 		user := user.NewUser(nil)
 		users = append(users, &user)
 	}
@@ -797,7 +798,7 @@ func TestConcurrentJoinStability(t *testing.T) {
 		go func(u *user.User) {
 			defer wg.Done()
 
-			for i := 0; i < nIterations; i++ {
+			for i := range nIterations {
 				targetGroupID := groupId1
 				if i%2 == 1 {
 					targetGroupID = groupId2
@@ -962,14 +963,14 @@ func TestStressTestSync(t *testing.T) {
 	const nIterations = 100
 
 	var wg sync.WaitGroup
-	for i := 0; i < nClient; i++ {
+	for range nClient {
 		wg.Go(func() {
 			mc := newMockClient()
 
 			mc.listen(t)
 			defer mc.close()
 
-			for i := 0; i < nIterations; i++ {
+			for range nIterations {
 				mockClientMsg(t, &hub, mc, "JoinGroup "+groupId)
 				mockClientMsg(t, &hub, mc, "LeaveGroup")
 			}

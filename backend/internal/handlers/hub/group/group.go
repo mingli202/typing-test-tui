@@ -36,9 +36,6 @@ type Group struct {
 	status            GameStatus
 	end               chan struct{}
 	nameProvider      *name_provider.NameProvider
-
-	cancel    context.CancelFunc
-	cancelCtx context.Context
 }
 
 func (group *Group) Id() string {
@@ -46,10 +43,8 @@ func (group *Group) Id() string {
 }
 
 // Makes a new group with the given id and data
-func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, parentCtx context.Context) *Group {
+func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider) *Group {
 	data, _ := dataProvider.NewData()
-
-	ctx, cancel := context.WithCancel(parentCtx)
 
 	group := Group{
 		id:           id,
@@ -59,9 +54,6 @@ func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider 
 		playerInfo:   make(map[string]*models.PlayerInfo),
 		status:       Waiting,
 		nameProvider: nameProvider,
-
-		cancel:    cancel,
-		cancelCtx: ctx,
 	}
 
 	return &group

@@ -19,7 +19,7 @@ var dataProvider, _ = data_provider.NewDataProvider()
 var nameProvider, _ = name_provider.NewNameProvider()
 
 func newGroup() *Group {
-	group := NewGroup("asdf", &dataProvider, &nameProvider, context.Background())
+	group := NewGroup("asdf", &dataProvider, &nameProvider)
 
 	return group
 }
@@ -115,7 +115,7 @@ func TestGetUsersSnapshot(t *testing.T) {
 
 	users := make([]*user.User, 0, 10)
 
-	for i := 0; i < 10; i += 1 {
+	for range 10 {
 		u := user.NewUser(nil)
 		users = append(users, &u)
 
@@ -130,7 +130,7 @@ func TestGetUsersSnapshot(t *testing.T) {
 
 	done := make(chan struct{})
 
-	for i := 0; i < 10; i += 1 {
+	for range 10 {
 		go func() {
 			select {
 			case <-done:
@@ -362,7 +362,7 @@ func TestStartGameInMiddleOfGame(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Act
-	err := gr.UserStartGame(&u1)
+	err := gr.UserStartGame(&u1, context.Background())
 
 	// Assert
 	if err == nil {
@@ -382,7 +382,7 @@ func TestUserStartGameEmptyGroupDoesNotPanic(t *testing.T) {
 		}
 	}()
 
-	err := gr.UserStartGame(&u)
+	err := gr.UserStartGame(&u, context.Background())
 	if err == nil {
 		t.Fatal("expected error when starting game in empty group")
 	}
@@ -498,7 +498,7 @@ func TestNewGameAfterGameEnds(t *testing.T) {
 	initialData := gr.data
 	gr.mu.RUnlock()
 	// Act
-	err := gr.UserStartGame(&u1)
+	err := gr.UserStartGame(&u1, context.Background())
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -657,7 +657,7 @@ func TestStartGameMinimumDurationForShortText(t *testing.T) {
 
 // Issue: startGame ticker lifecycle must allow repeated start/stop runs to terminate cleanly.
 func TestStartGameRepeatedRunsTerminateCleanly(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		u := user.NewUser(nil)
 		u.SetCh(make(chan models.Message, 4))
 

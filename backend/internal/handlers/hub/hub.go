@@ -29,8 +29,13 @@ type Hub struct {
 	ctx context.Context
 }
 
-// Makes a new hub
-func newHub(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, ctx context.Context) Hub {
+// Makes a new hub with a background context
+func newHub(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider) Hub {
+	return newHubWithCtx(dataProvider, nameProvider, context.Background())
+}
+
+// Makes a new hub with the given context
+func newHubWithCtx(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, ctx context.Context) Hub {
 	return Hub{
 		groups:       make(map[string]*group.Group),
 		dataProvider: dataProvider,
@@ -112,14 +117,14 @@ func (hub *Hub) handleUpdateStats(u *user.User, wpm float64, progress uint8) err
 
 // Handles starting a game
 // Returns the error if any
-func (hub *Hub) handleStartGame(u *user.User) error {
+func (hub *Hub) handleStartGame(u *user.User, ctx context.Context) error {
 	userGroup, err := hub.getGroupOfUser(u)
 
 	if err != nil {
 		return err
 	}
 
-	return userGroup.UserStartGame(u)
+	return userGroup.UserStartGame(u, ctx)
 }
 
 // Removes the given user from the user repository
@@ -301,7 +306,7 @@ func (hub *Hub) handleMessage(p []byte, u *user.User) (models.Message, error) {
 		return nil, err
 
 	case "StartGame":
-		err := hub.handleStartGame(u)
+		err := hub.handleStartGame(u, hub.ctx)
 
 		return nil, err
 
@@ -364,7 +369,7 @@ func (hub *Hub) String() string {
 }
 
 func Handler(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, ctx context.Context) http.Handler {
-	hub := newHub(dataProvider, nameProvider, ctx)
+	hub := newHubWithCtx(dataProvider, nameProvider, ctx)
 
 	return &hub
 }
