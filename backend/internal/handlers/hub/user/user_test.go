@@ -3,8 +3,8 @@ package user_test
 import (
 	"sync"
 	"testing"
-	"tui/backend/handlers/hub/user"
-	"tui/backend/models"
+	"tui/backend/internal/handlers/hub/user"
+	"tui/backend/internal/models"
 )
 
 func TestNewUser(t *testing.T) {

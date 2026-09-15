@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand/v2"
-	"tui/backend/assets"
-	"tui/backend/models"
+	"tui/backend/internal/assets"
+	"tui/backend/internal/models"
 )
 
 type DataProvider struct {

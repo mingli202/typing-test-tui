@@ -13,10 +13,10 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"tui/backend/handlers/hub/user"
-	"tui/backend/models"
-	"tui/backend/services/data_provider"
-	"tui/backend/services/name_provider"
+	"tui/backend/internal/handlers/hub/user"
+	"tui/backend/internal/models"
+	"tui/backend/internal/services/data_provider"
+	"tui/backend/internal/services/name_provider"
 
 	"github.com/gorilla/websocket"
 )

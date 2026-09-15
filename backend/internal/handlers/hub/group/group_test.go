@@ -1,6 +1,7 @@
 package group
 
 import (
+	"context"
 	"encoding/json"
 	"math/rand/v2"
 	"slices"
@@ -8,17 +9,17 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"tui/backend/handlers/hub/user"
-	"tui/backend/models"
-	"tui/backend/services/data_provider"
-	"tui/backend/services/name_provider"
+	"tui/backend/internal/handlers/hub/user"
+	"tui/backend/internal/models"
+	"tui/backend/internal/services/data_provider"
+	"tui/backend/internal/services/name_provider"
 )
 
 var dataProvider, _ = data_provider.NewDataProvider()
 var nameProvider, _ = name_provider.NewNameProvider()
 
 func newGroup() *Group {
-	group := NewGroup("asdf", &dataProvider, &nameProvider)
+	group := NewGroup("asdf", &dataProvider, &nameProvider, context.Background())
 
 	return group
 }

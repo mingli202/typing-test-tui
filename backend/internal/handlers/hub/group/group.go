@@ -1,6 +1,7 @@
 package group
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"maps"
@@ -8,10 +9,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"tui/backend/handlers/hub/user"
-	"tui/backend/models"
-	"tui/backend/services/data_provider"
-	"tui/backend/services/name_provider"
+	"tui/backend/internal/handlers/hub/user"
+	"tui/backend/internal/models"
+	"tui/backend/internal/services/data_provider"
+	"tui/backend/internal/services/name_provider"
 )
 
 type GameStatus int
@@ -35,6 +36,9 @@ type Group struct {
 	status            GameStatus
 	end               chan struct{}
 	nameProvider      *name_provider.NameProvider
+
+	cancel    context.CancelFunc
+	cancelCtx context.Context
 }
 
 func (group *Group) Id() string {
@@ -42,8 +46,10 @@ func (group *Group) Id() string {
 }
 
 // Makes a new group with the given id and data
-func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider) *Group {
+func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, parentCtx context.Context) *Group {
 	data, _ := dataProvider.NewData()
+
+	ctx, cancel := context.WithCancel(parentCtx)
 
 	group := Group{
 		id:           id,
@@ -53,6 +59,9 @@ func NewGroup(id string, dataProvider *data_provider.DataProvider, nameProvider 
 		playerInfo:   make(map[string]*models.PlayerInfo),
 		status:       Waiting,
 		nameProvider: nameProvider,
+
+		cancel:    cancel,
+		cancelCtx: ctx,
 	}
 
 	return &group
@@ -180,7 +189,7 @@ func (group *Group) UpdateStats(u *user.User, wpm float64, progressPercent uint8
 }
 
 // Starts the game
-func (group *Group) UserStartGame(u *user.User) error {
+func (group *Group) UserStartGame(u *user.User, ctx context.Context) error {
 	didMakeNewGame, err := func(gr *Group) (bool, error) {
 		gr.mu.Lock()
 		defer gr.mu.Unlock()
@@ -370,6 +379,7 @@ func (group *Group) setGameRunning() bool {
 	if group.status != Playing {
 		group.status = Playing
 		group.end = make(chan struct{})
+
 		return true
 	}
 

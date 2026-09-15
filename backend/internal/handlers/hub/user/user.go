@@ -2,7 +2,7 @@ package user
 
 import (
 	"sync"
-	"tui/backend/models"
+	"tui/backend/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

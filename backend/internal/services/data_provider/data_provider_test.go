@@ -2,7 +2,7 @@ package data_provider
 
 import (
 	"testing"
-	"tui/backend/models"
+	"tui/backend/internal/models"
 )
 
 func TestNewProvider(t *testing.T) {

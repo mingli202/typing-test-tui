@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -8,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"tui/backend/handlers/hub/group"
 	"tui/backend/handlers/hub/user"
-	"tui/backend/models"
-	"tui/backend/services/data_provider"
-	"tui/backend/services/name_provider"
+	"tui/backend/internal/internal/handlers/hub/group"
+	"tui/backend/internal/models"
+	"tui/backend/internal/services/data_provider"
+	"tui/backend/internal/services/name_provider"
 
 	"github.com/gorilla/websocket"
 )
@@ -24,14 +25,18 @@ type Hub struct {
 	groups       map[string]*group.Group
 	dataProvider *data_provider.DataProvider
 	nameProvder  *name_provider.NameProvider
+
+	ctx context.Context
 }
 
 // Makes a new hub
-func newHub(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider) Hub {
+func newHub(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, ctx context.Context) Hub {
 	return Hub{
 		groups:       make(map[string]*group.Group),
 		dataProvider: dataProvider,
 		nameProvder:  nameProvider,
+
+		ctx: ctx,
 	}
 }
 
@@ -358,8 +363,8 @@ func (hub *Hub) String() string {
 	return fmt.Sprintf("Hub {\n    groups: %#v\n}", hub.groups)
 }
 
-func Handler(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider) http.Handler {
-	hub := newHub(dataProvider, nameProvider)
+func Handler(dataProvider *data_provider.DataProvider, nameProvider *name_provider.NameProvider, ctx context.Context) http.Handler {
+	hub := newHub(dataProvider, nameProvider, ctx)
 
 	return &hub
 }

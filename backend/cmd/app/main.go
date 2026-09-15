@@ -7,33 +7,32 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
-	"time"
-	"tui/backend/handlers/hub"
-	"tui/backend/services/data_provider"
-	"tui/backend/services/name_provider"
+	"tui/backend/internal/handlers/hub"
+	"tui/backend/internal/services/data_provider"
+	"tui/backend/internal/services/name_provider"
 )
 
 const port = 8080
 
 func main() {
+	quitCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	mux := http.NewServeMux()
 
-	err := registerRoutes(mux)
+	err := registerRoutes(mux, quitCtx)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ctx := context.Background()
-
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%v", port),
 		Handler: mux,
 		BaseContext: func(l net.Listener) context.Context {
-			ctx = context.WithValue(ctx, "serverAddr", l.Addr().String())
+			ctx := context.WithValue(quitCtx, "serverAddr", l.Addr().String())
 			return ctx
 		},
 	}
@@ -47,14 +46,9 @@ func main() {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quitCtx.Done()
 
-	<-quit
-	log.Println("Shutting down server")
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
+	ctx := context.Background()
 
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shut down, %s\n", err)
@@ -63,7 +57,7 @@ func main() {
 	log.Println("Server stopped")
 }
 
-func registerRoutes(mux *http.ServeMux) error {
+func registerRoutes(mux *http.ServeMux, ctx context.Context) error {
 	dataProvider, err := data_provider.NewDataProvider()
 
 	if err != nil {
@@ -80,7 +74,7 @@ func registerRoutes(mux *http.ServeMux) error {
 		ctx := r.Context()
 		fmt.Fprintf(w, "Ready at %v!\n", ctx.Value("serverAddr"))
 	})
-	mux.Handle("/ws", hub.Handler(&dataProvider, &nameProvider))
+	mux.Handle("/ws", hub.Handler(&dataProvider, &nameProvider, ctx))
 	mux.HandleFunc("/new_data", func(w http.ResponseWriter, r *http.Request) {
 		data, err := dataProvider.NewData()
 
